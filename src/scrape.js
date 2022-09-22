@@ -20,9 +20,40 @@ var idArr = []; // array of ASINs to chk
 
 async function getData (itemId) {
 
+  var errCode = 0;
+
+  const handleErrors = (error, isExcp=false) => {
+   if (error.response) {
+    // The request was made and the server responded with a status code that falls out of the range of 2xx
+    if (isExcp) {
+     console.log("error.response.data =>", error.response.data);
+     console.log("error.response.status =>", error.response.status);
+     console.log("error.response.headers =>", error.response.headers);
+    }
+    errCode = error.response.status;
+   } else if (error.request) {
+    // The request was made but no response was received
+    // `error.request` is an instance of XMLHttpRequest in the browser and an instance of http.ClientRequest in node.js
+    if (isExcp) {
+     console.log("error.request =>", error.request);
+    }
+    errCode = 200;
+   } else {
+    // Something happened in setting up the request that triggered an Error
+    if (isExcp) {
+     console.log("error.message =>", error.message);
+    }
+    errCode = 999;
+   }
+   if (isExcp) {
+    console.log("error.config =>", error.config);
+   }
+  }
+  // handleErrors
+
   try {
 
-    var errCode, slctr, subSlctr, gotcha, resp, title, scraped, price, seller, sellerId, cond;
+    var slctr, subSlctr, gotcha, resp, title, scraped, price, seller, sellerId, cond;
     const output = [];
 
     const getSellerAndSellerId = (el, slctr="") => {
@@ -56,37 +87,9 @@ async function getData (itemId) {
     }
     // getSellerAndSellerId
 
-    const handleErrors = (error, isExcp=false) => {
-      if (error.response) {
-        // The request was made and the server responded with a status code that falls out of the range of 2xx
-        if (isExcp) {
-          console.log("error.response.data =>", error.response.data);
-          console.log("error.response.status =>", error.response.status);
-          console.log("error.response.headers =>", error.response.headers);
-        }
-        errCode = error.response.status;
-      } else if (error.request) {
-        // The request was made but no response was received
-        // `error.request` is an instance of XMLHttpRequest in the browser and an instance of http.ClientRequest in node.js
-        if (isExcp) {
-          console.log("error.request =>", error.request);
-        }
-        errCode = 200;
-      } else {
-        // Something happened in setting up the request that triggered an Error
-        if (isExcp) {
-          console.log("error.message =>", error.message);
-        }
-        errCode = 999;
-      }
-      if (isExcp) {
-        console.log("error.config =>", error.config);
-      }
-    }
-    // handleErrors
 
 
-    scraped = moment().utc().format("YYYY-MM-DD hh:mm:ss");
+    scraped = moment().utc().format("YYYY-MM-DD hh:mm:ss:SSS");
     //console.log("time ==>", scrapeTime.format('MMMM Do YYYY, h:mm:ss a')+" UTC");
 
     //console.log("id ====>", `[${itemId}]`);
