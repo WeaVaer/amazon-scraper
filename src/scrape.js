@@ -4,62 +4,108 @@ const axios = require("axios");
 const j2cp = require("json2csv").Parser;
 const fs = require("fs");
 
-const readline = require('readline').createInterface({
-  input: process.stdin,
-  output: process.stdout,
-});
-
-const getItemUrl = (itemId) => `https://www.amazon.com/dp/${itemId}`;
-//const getAltsUrl = (itemId) => `https://www.amazon.com/gp/aod/ajax/ref=dp_aod_ALL_mbc?asin=${itemId}&m=&qid=1618419581&smid=&sourcecustomerorglistid=&sourcecustomerorglistitemid=&sr=8-5&pc=dp`;
-const getAltsUrl = (itemId) => `https://www.amazon.com/gp/aod/ajax/?asin=${itemId}&m=&smid=&sourcecustomerorglistid=&sourcecustomerorglistitemid=&sr=8-5&pc=dp`;
-
-var idArr = []; // array of ASINs to chk
+const fileEx = true;  // exports output as csv file to 'output' directory
+const delay  = 3141;  // 0 => all processes run simultaneously; N => processes run sequentially with N milliseconds in between
+const DBG    = 0;     // 0:none, 1:brief, 2:verbose, 3:diagnostics
 
 
 
-
-async function getData (itemId) {
+async function scrapePage (asin, resolve=null, reject=null) {
 
   var errCode = 0;
 
+  const makePageUrl    = (asin) => `https://www.amazon.com/dp/${asin}`;
+  const makeSellersUrl = (asin) => `https://www.amazon.com/gp/aod/ajax/?asin=${asin}&m=&smid=&sourcecustomerorglistid=&sourcecustomerorglistasin=&sr=8-5&pc=dp`;
+
   const handleErrors = (error, isExcp=false) => {
-   if (error.response) {
-    // The request was made and the server responded with a status code that falls out of the range of 2xx
-    if (isExcp) {
-     console.log("error.response.data =>", error.response.data);
-     console.log("error.response.status =>", error.response.status);
-     console.log("error.response.headers =>", error.response.headers);
+    if (error.response) {
+      /* The request was made and the server responded with a status code that falls out of the range of 2xx */
+      if (DBG) {
+        if (DBG>1) {
+          console.log(`[${asin}] error.response.data =>`,    error.response.data);
+          console.log(`[${asin}] error.response.headers =>`, error.response.headers);
+        }
+        console.log(`[${asin}] error.response.status =>`,  error.response.status);
+      }
+      errCode = error.response.status;
+    } else if (error.request) {
+      /* The request was made but no response was received
+         `error.request` is an instance of XMLHttpRequest in the browser and an instance of http.ClientRequest in node.js */
+      if (DBG) console.log(`[${asin}] error.request =>`, ((DBG>1) ? error.request : "error=200"));
+      errCode = 200;
+    } else {
+      /* Something happened in setting up the request that triggered an Error */
+      if ((isExcp||(DBG>1))&&(error.stack)) console.log(`[${asin}] error.stack =>`, error.stack);
+                                       else console.log(`[${asin}] error.message =>`, error.message);
+      errCode = 999;
     }
-    errCode = error.response.status;
-   } else if (error.request) {
-    // The request was made but no response was received
-    // `error.request` is an instance of XMLHttpRequest in the browser and an instance of http.ClientRequest in node.js
-    if (isExcp) {
-     console.log("error.request =>", error.request);
-    }
-    errCode = 200;
-   } else {
-    // Something happened in setting up the request that triggered an Error
-    if (isExcp) {
-     console.log("error.message =>", error.message);
-    }
-    errCode = 999;
-   }
-   if (isExcp) {
-    console.log("error.config =>", error.config);
-   }
+    if (isExcp && error.config) console.log(`[${asin}] error.config =>`, error.config);
   }
-  // handleErrors
+  // handleErrors()
 
   try {
 
-    var slctr, subSlctr, gotcha, resp, title, scraped, price, seller, sellerId, cond;
-    const output = [];
+    var $, resp;
+    var objProduct = {scrapeTime:0, asin:'', title:'', pRatings:'', bsRate:'', answers:''};
+    var objOffer  = {buyBox:'', condition:'', price:'', seller:'', sellerId:'', shipping:'', ratings:'', rate:''};
+    const output   = [];
+    /* output format : [
+                        {scrapeTime, asin, title, pRatings, bsRate, answers},                     <= objProduct
+                        {buyBox, condition, price, seller, sellerId, shipping, ratings, rate},    <= objOffer
+                        ...                                                                       <= more objOffer ...
+                       ]
+    */
 
-    const getSellerAndSellerId = (el, slctr="") => {
-      let slc = (slctr) ? (slctr+" ") : "";
-      seller = el.find(slc+"a"); // if the seller is not 'amazon.com' then a href is provided
+    const scrapeThing = (el, section, component) => (el) ? el.find(((section)?(section+' '):'') + component) : $(((section)?(section+' '):'') + component);
+    // scrapeThing()
+
+    /* -- main object parts (product) -- */
+
+    const scrapeProductTitle = (el, obj) => {
+      let o = scrapeThing(el, '#title_feature_div', '#productTitle');
+      obj.title = (o.length) ? $(o[0]).text().trim() : "NOT FOUND";
+      console.log(`[${asin}] title =>`, obj.title);
+    }
+    // scrapeProductTitle()
+
+    const scrapeProductRatings = (el, obj) => {
+      let o = scrapeThing(el, '', '#productRatings');
+      obj.pRatings = (o.length) ? $(o[0]).text().trim() : "";
+    }
+    // scrapeProductRatings()
+
+    const scrapeProductBSR = (el, obj) => {
+      let o = scrapeThing(el, '', '#productBsr');
+      obj.bsRate = (o.length) ? $(o[0]).text().trim() : "";
+    }
+    // scrapeProductBSR()
+
+    const scrapeProductAnswers = (el, obj) => {
+      let o = scrapeThing(el, '', '#productAnswers');
+      obj.answers = (o.length) ? $(o[0]).text().trim() : "";
+    }
+    // scrapeProductAnswers()
+
+    /* -- seller object parts (offers) -- */
+
+    const scrapeOfferCondition = (el, obj, pinned) => {
+     let o = scrapeThing(el, '', 'h5');
+     obj.condition = (o.length) ? $(o[0]).text().trim().replace("\n","") : "";
+     while (obj.condition && obj.condition.includes('  ')) { obj.condition = obj.condition.replace("  "," ");}
+    }
+    // scrapeOfferCondition()
+
+    const scrapeOfferPrice = (el, obj, pinned) => {
+      let o = scrapeThing(el, ((pinned)?'#aod-price-0':'#aod-offer-price'), '.a-offscreen');
+      obj.price = (o.length) ? $(o[0]).text().trim() : "";
+    }
+    // scrapeOfferPrice()
+
+    const scrapeOfferSellerAndId = (el, obj, pinned) => {
+      let sellerId = '';
+      let seller   = scrapeThing(el, '#aod-offer-soldBy', 'a');
       if (seller.length) {
+        /* if the seller is not 'amazon.com' then <href> is provided */
         sellerId = $(seller[0]).attr("href");
         if (sellerId) {
           if (sellerId.includes('seller=')) {
@@ -74,8 +120,8 @@ async function getData (itemId) {
         }
         seller = $(seller[0]).text().trim();
       } else {
-        // if here then the seller should be 'amazon.com'
-        seller = el.find(slc+"span.a-color-base");
+        /* if here then the seller should be 'amazon.com' in <span> */
+        seller = scrapeThing(el, '#aod-offer-soldBy', 'span.a-color-base');
         if (seller.length) {
           sellerId = '0'; // amazon.com
           seller   = $(seller[0]).text().trim();
@@ -84,20 +130,58 @@ async function getData (itemId) {
           seller   = "?";
         }
       }
+      obj.seller   = seller;
+      obj.sellerId = sellerId;
     }
-    // getSellerAndSellerId
+    // scrapeOfferSellerAndId()
+
+    const scrapeOfferShipping = (el, obj, pinned) => {
+      let o = scrapeThing(el, '', '.XXX');
+      obj.shipping = (o.length) ? ((($(o[0]).text().trim()==obj.seller)&&(obj.seller.toLowerCase().excludes('amazon')))?'FBM':'FBA') : "?";
+    }
+    // scrapeOfferShipping()
+
+    const scrapeOfferRatings = (el, obj, pinned) => {
+      let o = scrapeThing(el, '', '.XXX');
+      obj.ratings = (o.length) ? $(o[0]).text().trim() : "";
+    }
+    // scrapeOfferRatings()
+
+    const scrapeOfferRate = (el, obj, pinned) => {
+      let o = scrapeThing(el, '', '.XXX');
+      obj.rate = (o.length) ? $(o[0]).text().trim() : "";
+    }
+    // scrapeOfferRate()
+
+    const scrapeOffers = (pinned=false) => {
+      let items = scrapeThing(null, '', ((pinned)?'#aod-pinned-offer':'#aod-offer'));
+      if (items.length) items.each(function() {
+        let obj = {...objOffer};
+        obj.buyBox = (pinned) ? "Y" : "";
+        scrapeOfferPrice(       $(this), obj, pinned);
+        scrapeOfferCondition(   $(this), obj);
+        scrapeOfferSellerAndId( $(this), obj);
+        scrapeOfferShipping(    $(this), obj);
+        scrapeOfferRatings(     $(this), obj);
+        scrapeOfferRate(        $(this), obj);
+        output.push({...obj});
+      });
+    }
+    // scrapeOffers()
 
 
+   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    scraped = moment().utc().format("YYYY-MM-DD hh:mm:ss:SSS");
-    //console.log("time ==>", scrapeTime.format('MMMM Do YYYY, h:mm:ss a')+" UTC");
 
-    //console.log("id ====>", `[${itemId}]`);
+    /* let's do this */
 
-    //console.log("url ===>", getItemUrl(itemId));
+    objProduct.asin       = asin;
+    objProduct.scrapeTime = moment().utc().format("YYYY-MM-DD hh:mm:ss:SSS");
+
+    /* fetch from url of the main page */
     errCode = 0;
     resp = await axios.get(
-      getItemUrl(itemId),
+      makePageUrl(asin),
       {
         headers: {
           'Host'   : "www.amazon.com",
@@ -113,108 +197,66 @@ async function getData (itemId) {
       handleErrors(error);
     });
     if (errCode) {
-      title = (errCode==404) ? "NOT FOUND" : ("ERROR : "+errCode);
-      output.push({scraped, itemId, title});
-      console.log(output);
-      return;
+      objProduct.title = (errCode==404) ? "NOT FOUND" : ("ERROR:"+errCode);
+      console.log(`[${asin}] title =>`, objProduct.title);
+      output.push({...objProduct});
+      if (resolve) resolve(output);
+      return output;
     } else {
-      //console.log("resp =>", resp);
+      if (DBG==3) console.log(`[${asin}] main page fetch response =>`, resp);
     }
 
-    var $ = cheerio.load(resp.data);
-    //console.log("page ==>", $);
+    /* parse response as dom */
+    $ = cheerio.load(resp.data);
+    if (DBG==3) console.log(`[${asin}] main page ==>`, $);
 
-    slctr = "#title_feature_div #productTitle";
-    title = $(slctr);
-    gotcha = (title.length>0);
-    title = (gotcha) ? $(title[0]).text().trim() : "NOT FOUND";
-    //console.log("title =>", title);
-    output.push({scraped, itemId, title});
+    /* fill up the main part (objProduct) */
+    scrapeProductTitle(   null, objProduct);
+    scrapeProductRatings( null, objProduct);
+    scrapeProductBSR(     null, objProduct);
+    scrapeProductAnswers( null, objProduct);
+    output.push({...objProduct});
 
-    if (gotcha) {
+    /* fetch from url of the sellers page */
 
-      slctr = "#olpLinkWidget_feature_div";
-      var altsWidget = $(slctr);
-      if (!altsWidget.length) { // !! it seems that for pages where the applet is not showing, we can still access it; thus execution never comes here
-
-        // no sellers applet, get price from main page
-        slctr = "#corePriceDisplay_desktop_feature_div .a-price.priceToPay";
-        price = $(slctr);
-        if (price.length<1) {
-          price = "section not found ["+slctr+"]";
-        } else {
-          subSlctr = ".a-offscreen";
-          price = $(price[0]).find(subSlctr);
-          price = (price.length<1) ? ("not found [("+slctr+")[0] "+subSlctr+"]") : $(price[0]).text();
+    errCode = 0;
+    resp = await axios.get(
+      makeSellersUrl(asin),
+      {
+        headers : {
+          'Host'   : "www.amazon.com",
+          'Accept' : "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+          'Pragma' : "no-cache",
+          'TE'     : "trailers",
+          'Upgrade-Insecure-Requests' : 1,
+          'User-Agent' : "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:105.0) Gecko/20100101 Firefox/105.0"
         }
-        getSellerAndSellerId($("#bylineInfo_feature_div"));
-        cond = "main";
-        output.push({cond, price, seller, sellerId});
+      }
+    )
+    .catch(function (error) {
+      handleErrors(error);
+    });
+    if (errCode) {
+      obj = {...objOffer};
+      obj.seller = (errCode==404) ? "NOT FOUND" : ("ERROR : "+errCode);
+      output.push({...obj});
+      if (resolve) resolve(output);
+      return output;
+    } else {
+      if (DBG==3) console.log(`[${asin}] sellers page fetch response =>`, resp);
+    }
 
-      } else {
+    /* parse response as dom */
+    $ = cheerio.load(resp.data);
+    if (DBG==3) console.log(`[${asin}] sellers page ==>`, $);
 
-        // get sellers and prices from the applet page
-        errCode = 0;
-        resp = await axios.get(
-          getAltsUrl(itemId),
-          {
-            headers : {
-              'Host'   : "www.amazon.com",
-              'Accept' : "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-              'Pragma' : "no-cache",
-              'TE'     : "trailers",
-              'Upgrade-Insecure-Requests' : 1,
-              'User-Agent' : "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:105.0) Gecko/20100101 Firefox/105.0"
-            }
-          }
-        )
-        .catch(function (error) {
-          handleErrors(error);
-        });
-        if (errCode) {
-          cond = "";
-          price = "";
-          seller = (errCode==404) ? "NOT FOUND" : ("ERROR : "+errCode);
-          sellerId = "";
-          output.push({cond, price, seller, sellerId});
-          console.log(output);
-          return;
-        } else {
-          //console.log("resp =>", resp);
-        }
+    /* scrape and fill up the seller information (might be multiple objOffer's ) */
+    scrapeOffers(true);  // first get the recommended offer on top
+    scrapeOffers(false); // then get the rest of the offers
 
-        $ = cheerio.load(resp.data);
-        //console.log("page ==>", $);
-
-        // first get the pinned offer
-        var items = $("#aod-pinned-offer");
-        if (items.length) {
-          price  = $(items[0]).find("#aod-price-0 .a-offscreen").text() || "$?";
-          getSellerAndSellerId($(items[0]), "#aod-offer-soldBy");
-          cond = "pinned";
-          output.push({cond, price, seller, sellerId});
-        }
-
-        // then get the rest of the offers
-        items = $("#aod-offer");
-        if (items.length) {
-          items.each(function(){
-            price  = $(this).find("#aod-offer-price .a-offscreen").text() || "$?";
-            getSellerAndSellerId($(this), "#aod-offer-soldBy");
-            cond = ($(this).find("h5").text().trim() || "cond?").replace("\n","");
-            while (cond && cond.includes("  ")) { cond = cond.replace("  "," ");}
-            output.push({cond, price, seller, sellerId});
-          });
-        }
-
-      } // if (!altsWidget.length) { .. } else ..
-
-      console.log(output);
-      const parser = new j2cp();
-      const csv = parser.parse(output);
-      fs.writeFileSync(`./output/${itemId}.csv`, csv);
-
-    } // if (gotcha) { ..
+    /* that's it for this ASIN */
+    if (resolve) resolve(output);
+    return output;
 
   }
   catch(excp) {
@@ -222,22 +264,96 @@ async function getData (itemId) {
   }
 
 }
-// getData()
+// scrapePage()
 
 
-// initialize
 
-readline.question(`Enter itemId's seperated by comma (or enter 'test') : `, (ids) => {
+
+
+
+
+
+/* -- INITIALIZE -- */
+
+const readline = require('readline').createInterface({
+  input:  process.stdin,
+  output: process.stdout,
+});
+
+readline.question(`Enter asin's seperated by comma (or enter 'test') : `, (ids) => {
+
   console.log(" ");
-  idArr = ids.split(',');
-  if ((idArr.length>0)&&(idArr[0])) {
-    if (idArr[0]=='test') {
-      idArr = ['B01GDJ2BH6','B07H4VWNNR','B08L4SLBFN','4040404040'];
-      console.log("# TESTING #   id.s =>", idArr, "\n");
+  var sessionMoment   = moment();
+  var sessionFilename = sessionMoment.utc().format("YYYY-MM-DD hh-mm-ss-SSS");
+
+  var asinArr = ids.split(',');
+
+  if ((asinArr.length>0)&&(asinArr[0])) {
+
+    if (asinArr[0]=='test') {
+      asinArr = ['B01GDJ2BH6','B07H4VWNNR','B08L4SLBFN','4040404040'];
+      console.log(":: TESTING ::   id.s =>", asinArr);
     }
-    idArr.forEach(el => getData(el));
+    console.log(" ");
+
+    const promises = [];
+    var   prmsCntr = 0;
+    asinArr.forEach(thisAsin => {
+      promises.push(new Promise((resolve, reject) => {setTimeout(function(){scrapePage(thisAsin, resolve, reject)},((delay*prmsCntr)+1))}));
+      prmsCntr++;
+    });
+
+    const writeFile = (data) => {
+      const parser = new j2cp();
+      const csv = parser.parse(data);
+      fs.writeFileSync(`./output/${sessionFilename}.csv`, csv);
+    }
+
+    if (delay) {
+
+      const output = [];
+      async function executeSequential () {
+        let processPromises = async () => {
+          for (let promise of promises) {
+            try {
+              const out = await promise;
+              output.push([...out]);
+            } catch(error) {
+              if ((DBG>1)&&(error.stack)) console.log(`[main] error.stack =>`, error.stack);
+                                     else console.log(`[main] error.message =>`, error.message);
+            }
+          }
+        }
+        await processPromises();
+        console.log(" ");
+        console.log("OUTPUT =>", output);
+        console.log(" ");
+        console.log(`:: Scraping session [${sessionFilename}] with ${output.length} items & ${delay} msec. delay has completed in ${moment().unix()-sessionMoment.unix()} seconds\n`);
+        if (fileEx) writeFile(output);
+      }
+      executeSequential();
+
+    } else {
+
+      Promise.all(promises)
+      .then(output => {
+        console.log(" ");
+        console.log("OUTPUT =>", output);
+        console.log(" ");
+        console.log(`:: Scraping session [${sessionFilename}] with ${output.length} items has completed in ${moment().unix()-sessionMoment.unix()} seconds\n`);
+        if (fileEx) writeFile(output);
+      })
+      .catch(error => {
+        handleErrors(error, true);
+      });
+
+    }
+/*
+*/
+
+
   } else {
-   console.log("Nothing to check for !");
+    console.log("Nothing to check for !");
   }
   readline.close();
 });
