@@ -6,6 +6,6 @@ parse results      => [Cheerio]* / Puppeteer
 command line options :
 ----------------------
 
-"node init" => installs node_modules
+"npm init" => installs node_modules
 
 "npm start" => runs the nodelett

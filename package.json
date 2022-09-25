@@ -1,16 +1,15 @@
 {
   "name": "amazon-scraper",
   "version": "1.0.0",
-  "description": "",
+  "description": "Basic Amazon web scraper",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node src/scrape.js"
+    "start": "node index.js"
   },
   "keywords": [],
   "author": "Nail Murat Yalcin aka NMYdoc630819",
   "license": "ISC",
-  "DBG:chromium-args": "--enable-logging=stderr",
   "dependencies": {
     "axios": "^0.27.2",
     "cheerio": "^1.0.0-rc.12",
