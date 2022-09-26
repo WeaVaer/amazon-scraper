@@ -8,7 +8,7 @@ const fs = require("fs");
 module.exports = function() {
 
   const fileExport = true;  // true -> exports output as csv file to 'output' directory
-  const iDelay     = 3141;  // 0 -> all processes run simultaneously; N -> processes run sequentially with N milliseconds in between
+  const iDelay     = 1000;//3141;  // 0 -> all processes run simultaneously; N -> processes run sequentially with N milliseconds in between
   const realTime   = true;  // true -> output is displayed seperately for each process
   const DBG        = 0;     // 0 -> none, 1 -> brief, 2 -> verbose, 3 -> diagnostics
 
@@ -91,7 +91,7 @@ module.exports = function() {
       /* -- seller object parts (offers) -- */
 
       const scrapeOfferCondition = (el, obj, pinned) => {
-       let o = scrapeThing(el, '', 'h5');
+       let o = scrapeThing(el, '#aod-offer-heading', 'h5');
        obj.condition = (o.length) ? $(o[0]).text().trim().replace("\n","") : "";
        while (obj.condition && obj.condition.includes('  ')) { obj.condition = obj.condition.replace("  "," ");}
       }
@@ -138,8 +138,10 @@ module.exports = function() {
       // scrapeOfferSellerAndId()
 
       const scrapeOfferShipping = (el, obj, pinned) => {
-        let o = scrapeThing(el, '', '.XXX');
-        obj.shipping = (o.length) ? ((($(o[0]).text().trim()==obj.seller)&&(obj.seller.toLowerCase().excludes('amazon')))?'FBM':'FBA') : "?";
+        let o = scrapeThing(el, '#aod-offer-shipsFrom', 'a');
+        if (!o.length) o = scrapeThing(el, '#aod-offer-shipsFrom', 'span.a-color-base');
+        let s = (obj.seller || "").toLowerCase();
+        obj.shipping = (o.length) ? ((($(o[0]).text().trim()==s)&&(s.excludes('amazon')))?'FBM':'FBA') : "?";
       }
       // scrapeOfferShipping()
 
@@ -286,7 +288,7 @@ module.exports = function() {
     output: process.stdout,
   });
 
-  readline.question(`Enter ASINs seperated by comma (or enter 'test') : `, (ids) => {
+  readline.question(`:: Enter ASINs seperated by comma (or enter 'test') : `, (ids) => {
 
     console.log(" ");
     var sessionMoment   = moment();
@@ -298,8 +300,8 @@ module.exports = function() {
     if ((asinArr.length>0)&&(asinArr[0])) {
 
       if (asinArr[0]=='test') {
-        asinArr = ['B01GDJ2BH6','B07H4VWNNR','B08L4SLBFN','4040404040'];
-        console.log(":: TESTING ::   id.s =>", asinArr);
+        asinArr = ['B01GDJ2BH6','B07H4VWNNR','B08L4SLBFN','404-IS-BAD'];
+        console.log(":: TESTING ASIN.s =>", asinArr);
       }
       console.log(" ");
 
@@ -322,12 +324,12 @@ module.exports = function() {
                                    else console.log(`[file] error.message =>`, error.message);
           }
         } else if (!realTime) {
-          console.log("\n:: OUTPUT =>");
+          console.log("\n:: OUTPUT =>\n");
           console.log(data);
           console.log(" ");
         }
-        console.log(`:: Scraping session ${(fileExport)?`saved as 'output/${sessionFilename}.csv' `:''}with ${data.length} items ${(iDelay)?('& '+(iDelay+1)+' msec. gaps '):''}has completed in ${moment().unix()-sessionMoment.unix()} seconds\n`);
-        console.log(" ");
+        console.log(`\n:: Scraping session ${(fileExport)?`saved as 'output/${sessionFilename}.csv' `:''}with ${data.length} items `+
+                    `${(iDelay)?('& '+(iDelay+1)+' msec. gaps '):''}has completed in ${moment().unix()-sessionMoment.unix()} seconds\n`);
       }
       // wrapUp()
 
@@ -339,7 +341,7 @@ module.exports = function() {
             for (let promise of promises) {
               try {
                 const out = await promise;
-                output.push([...out]);
+                output.push(...out);
               } catch(error) {
                 if ((DBG>1)&&(error.stack)) console.log(`[main] error.stack =>`, error.stack);
                                        else console.log(`[main] error.message =>`, error.message);
