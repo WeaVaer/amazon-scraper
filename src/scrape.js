@@ -7,6 +7,8 @@ const fs = require("fs");
 
 module.exports = function() {
 
+  /* === SETTINGS === */
+
   const fileExport    = true;  // true -> exports output as csv file to 'output' directory
   const interDelay    = 3142;  // 0 -> all processes run simultaneously,  N -> processes run sequentially with N milliseconds in between
   const proc_pAnswers = false; // false -> show productAnswers as is,  true -> numerize productAnswers
@@ -14,7 +16,8 @@ module.exports = function() {
   const proc_oRates   = false; // false -> show offerRates as is,      true -> numerize offerRates
   const DBG           = 0;     // console output : 0 -> none, 1 -> brief, 2 -> verbose, 3 -> diagnostics
   const logsRealtime  = true;  // data output is displayed on console : true -> seperately for each process,  false -> at the end of session if (!fileExport)
-  const moduleVersion = '20220925.0524';
+  const beSpiritual   = false; // true -> use spiritual language in the console logs
+  const moduleVersion = '20220926.0630';
 
   async function scrapePage (asin, resolve=null, reject=null) {
 
@@ -35,7 +38,7 @@ module.exports = function() {
 
     const numerize      = (num) => (num) ? parseInt(num.replace("(","").replace(")","").replace(/,/g,"").trim()) : '';
 
-    const handleErrors  = (error, isExcp=false) => {
+    const handleErrors  = (error, isExcp=false, obj=null) => {
       if (error.response) {
         /* The request was made and the server responded with a status code that falls out of the range of 2xx */
         if (DBG) {
@@ -53,8 +56,23 @@ module.exports = function() {
         errCode = 200;
       } else {
         /* Something happened in setting up the request that triggered an Error */
+        const createRandomSwear = () => {
+          var roll = Math.floor(Math.random()*8); // roll = 0..7
+          switch (roll) {
+            case 0 : return 'ALLAH KAHRETMESiN EMi ..';
+            case 1 : return 'YAPMA BE YAAA !';
+            case 2 : return 'BU NEKi SiMDi ?';
+            case 3 : return 'BASLIYACAM SiMDi AMA ..';
+            case 4 : return 'HOPPALAAAA !';
+            case 5 : return 'ABiCiM NE HATASI BU ?';
+            case 6 : return 'BANA HATA DiYE GELMEYiN KARDESiM ..';
+            case 7 : return 'DE Ki; HATASIZ KUL OLMAZ ..';
+          }
+        }
+        if (beSpiritual) console.log('\n!! '+createRandomSwear+'\n');
         if ((isExcp||(DBG>1))&&(error.stack)) console.log(`[${asin}] error.stack =>`, error.stack);
                                          else console.log(`[${asin}] error.message =>`, error.message);
+        if (obj) obj.error = ((isExcp||(DBG>1))&&(error.stack)) ? error.stack : error.message;
         errCode = 999;
       }
       if (isExcp && error.config) console.log(`[${asin}] error.config =>`, error.config);
@@ -143,8 +161,8 @@ module.exports = function() {
       const scrapeOfferShipping = (el, obj) => {
         let o = scrapeThing(el, '#aod-offer-shipsFrom', 'a');
         if (!o.length) o = scrapeThing(el, '#aod-offer-shipsFrom', 'span.a-color-base');
-        let s = (obj.seller || "").toLowerCase();
-        obj.shipping = (o.length) ? ((($(o[0]).text().trim()==s)&&(s.excludes('amazon')))?'FBM':'FBA') : "?";
+        let s = (obj.seller) ? obj.seller.toLowerCase() : "";
+        obj.shipping = (s&&(o.length)) ? ((($(o[0]).text().trim()==s)&&(s.excludes('amazon')))?'FBM':'FBA') : "?";
       }
       // scrapeOfferShipping()
 
@@ -153,7 +171,6 @@ module.exports = function() {
           let o = (pinned) ? scrapeThing(el, '', '#aod-asin-reviews-count-title')    // '35 ratings'
                            : scrapeThing(el, '#aod-offer-seller-rating > span > span', ''); // '(35 ratings)<br>65% positive over last 12 months'
           if (o.length) {
-
             o = $(o[0]).text().trim().split(' ratings');
             obj.ratings = (proc_oRatings) ? numerize(o[0]) : o[0].replace("(","");
             o = (o.length>1) ? o[1].trim() : '';
@@ -285,7 +302,9 @@ module.exports = function() {
 
     }
     catch(excp) {
-      handleErrors(excp, true);
+      handleErrors(excp, true, output[0]);
+      if (resolve) resolve(output);
+      if (logsRealtime) console.log(output, '\n');
     }
 
   }
@@ -305,20 +324,28 @@ module.exports = function() {
     output: process.stdout,
   });
 
-  readline.question(`AMAZON-SCRAPER v.${moduleVersion} by NMYdoc630819\n\n:: Enter ASINs seperated by comma (or enter 'test') : `, (ids) => {
+  readline.question(`AMAZON-SCRAPER v.${moduleVersion} by NMYdoc630819\n\n:: Enter ASINs seperated by comma/space (or enter 'test') : `, (ids) => {
 
     console.log(" ");
     var sessionMoment   = moment();
     var sessionFilename = sessionMoment.utc().format("YYYY-MM-DD_hh-mm-ss-SSS");
 
-    var idsx = ids.trim().replace(/ /g, '');
+    var idsx = ids.trim();
+    if (idsx.includes(',')) {
+      idsx = idsx.replace(/ /g, '');
+    } else if (idsx.includes(' ')) {
+      idsx = idsx.replace(/ /g, ',');
+      while (idsx.includes(',,')) idsx.replace(',,', ',');
+    }
     var asinArr = idsx.split(',');
 
     if ((asinArr.length)&&(asinArr[0])) {
 
       if (asinArr[0]=='test') {
         asinArr = ['B01GDJ2BH6','B07H4VWNNR','B08L4SLBFN','404-IS-BAD'];
-        console.log(":: TESTING ASIN.s =>", asinArr);
+        console.log(`:: ${(beSpiritual)?'INSALLAH ':''}Testing ${asinArr.length} ASIN.s =>`, asinArr);
+      } else {
+        console.log(`:: ${(beSpiritual)?'INSALLAH ':''}Processing ${asinArr.length} ASIN.s ...`);
       }
       console.log(" ");
 
@@ -349,7 +376,8 @@ module.exports = function() {
         if (gap>=60000) {gap=(gap/60000)+' minute'} else if (gap>=1000) {gap=(gap/1000)+' second'} else if (gap>0) gap=gap+' millisecond';
         let run = moment().unix() - sessionMoment.unix();
         if (run>=3600) {run=(run/3600)+' hours'} else if (run>=60) {run=(run/60)+' minutes'} else run=run+' seconds';
-        console.log(`\n:: Amazon-Scraping session ${(fileExport)?`saved as 'output/${sessionFilename}.csv' `:''}with ${data.length} items `+
+        console.log(`\n:: ${(beSpiritual)?'YARABBI SUKUR :: ':''}` +
+                    `Amazon-Scraping session ${(fileExport)?`saved as 'output/${sessionFilename}.csv' `:''}with ${data.length} items ` +
                     `${(interDelay)?('& '+gap+' gaps '):''}has completed in ${run}\n`);
       }
       // wrapUp()
