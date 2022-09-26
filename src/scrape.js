@@ -8,18 +8,31 @@ const fs = require("fs");
 module.exports = function() {
 
   const fileExport = true;  // true -> exports output as csv file to 'output' directory
-  const iDelay     = 1000;//3141;  // 0 -> all processes run simultaneously; N -> processes run sequentially with N milliseconds in between
+  const iDelay     = 1400;//3142;  // 0 -> all processes run simultaneously; N -> processes run sequentially with N milliseconds in between
   const realTime   = true;  // true -> output is displayed seperately for each process
   const DBG        = 0;     // 0 -> none, 1 -> brief, 2 -> verbose, 3 -> diagnostics
+  const mdVersion  = '20220925.0430';
 
   async function scrapePage (asin, resolve=null, reject=null) {
 
     var errCode = 0;
 
-    const makePageUrl    = (asin) => `https://www.amazon.com/dp/${asin}`;
-    const makeSellersUrl = (asin) => `https://www.amazon.com/gp/aod/ajax/?asin=${asin}&m=&smid=&sourcecustomerorglistid=&sourcecustomerorglistasin=&sr=8-5&pc=dp`;
+    var $, resp;
+    var objProduct = {asin:'',   title:'', scrapeTime:'', answers:'', bsRate:''};
+    var objOffer   = {buyBox:'', price:'', condition:'',  seller:'',  sellerId:'', shipping:'', ratings:'', rate:''};
+    const output   = [];
+    /* output format : [
+                        {asin, title, scrapeTime, answers, bsRate},                               <= objProduct
+                        {buyBox, price, condition, seller, sellerId, shipping, ratings, rate},    <= objOffer
+                        ...                                                                       <= more objOffer ...
+                       ]
+    */
+    const makePageUrl   = (asin) => `https://www.amazon.com/dp/${asin}`;
+    const makeOffersUrl = (asin) => `https://www.amazon.com/gp/aod/ajax/?asin=${asin}&m=&smid=&sourcecustomerorglistid=&sourcecustomerorglistasin=&sr=8-5&pc=dp`;
 
-    const handleErrors = (error, isExcp=false) => {
+    const numerize      = (num) => (num) ? parseInt(num.replace("(","").replace(")","").replace(/,/g,"").trim()) : '';
+
+    const handleErrors  = (error, isExcp=false) => {
       if (error.response) {
         /* The request was made and the server responded with a status code that falls out of the range of 2xx */
         if (DBG) {
@@ -31,7 +44,7 @@ module.exports = function() {
         }
         errCode = error.response.status;
       } else if (error.request) {
-        /* The request was made but no response was received
+        /* The request was made but no response was received.
            `error.request` is an instance of XMLHttpRequest in the browser and an instance of http.ClientRequest in node.js */
         if (DBG) console.log(`[${asin}] error.request =>`, ((DBG>1) ? error.request : "error=200"));
         errCode = 200;
@@ -47,55 +60,35 @@ module.exports = function() {
 
     try {
 
-      var $, resp;
-      var objProduct = {scrapeTime:0, asin:'', title:'', pRatings:'', bsRate:'', answers:''};
-      var objOffer   = {buyBox:'', condition:'', price:'', seller:'', sellerId:'', shipping:'', ratings:'', rate:''};
-      const output   = [];
-      /* output format : [
-                          {scrapeTime, asin, title, pRatings, bsRate, answers},                     <= objProduct
-                          {buyBox, condition, price, seller, sellerId, shipping, ratings, rate},    <= objOffer
-                          ...                                                                       <= more objOffer ...
-                        ]
-      */
-
       const scrapeThing = (el, section, component) => (el) ? el.find(((section)?(section+' '):'') + component) : $(((section)?(section+' '):'') + component);
       // scrapeThing()
 
       /* -- main object parts (product) -- */
 
       const scrapeProductTitle = (el, obj) => {
-        let o = scrapeThing(el, '#title_feature_div', '#productTitle');
+        let o = scrapeThing(el, '', '#title_feature_div #productTitle');
         obj.title = (o.length) ? $(o[0]).text().trim() : "NOT FOUND";
         if (!realTime) console.log(`[${asin}] title =>`, obj.title);
       }
       // scrapeProductTitle()
 
-      const scrapeProductRatings = (el, obj) => {
-        let o = scrapeThing(el, '', '#productRatings');
-        obj.pRatings = (o.length) ? $(o[0]).text().trim() : "";
-      }
-      // scrapeProductRatings()
-
-      const scrapeProductBSR = (el, obj) => {
-        let o = scrapeThing(el, '', '#productBsr');
-        obj.bsRate = (o.length) ? $(o[0]).text().trim() : "";
-      }
-      // scrapeProductBSR()
-
       const scrapeProductAnswers = (el, obj) => {
-        let o = scrapeThing(el, '', '#productAnswers');
-        obj.answers = (o.length) ? $(o[0]).text().trim() : "";
+        let o = scrapeThing(el, '', '#askATFLink');
+        obj.answers = (o.length) ? numerize($(o[0]).text()) : "";
       }
       // scrapeProductAnswers()
 
-      /* -- seller object parts (offers) -- */
-
-      const scrapeOfferCondition = (el, obj, pinned) => {
-       let o = scrapeThing(el, '#aod-offer-heading', 'h5');
-       obj.condition = (o.length) ? $(o[0]).text().trim().replace("\n","") : "";
-       while (obj.condition && obj.condition.includes('  ')) { obj.condition = obj.condition.replace("  "," ");}
+      const scrapeProductBSR = (el, obj) => {
+        let o = scrapeThing(el, '', '#prodDetails th:contains("Best Sellers Rank") ~ td span span');
+        if (o.length) o.each(function() {
+          let s = $(this).text().split(' (')[0];
+          obj.bsRate = (obj.bsRate) ? (obj.bsRate+' | '+s) : s;
+        });
       }
-      // scrapeOfferCondition()
+      // scrapeProductBSR()
+
+
+      /* -- seller object parts (offers) -- */
 
       const scrapeOfferPrice = (el, obj, pinned) => {
         let o = scrapeThing(el, ((pinned)?'#aod-price-0':'#aod-offer-price'), '.a-offscreen');
@@ -103,7 +96,14 @@ module.exports = function() {
       }
       // scrapeOfferPrice()
 
-      const scrapeOfferSellerAndId = (el, obj, pinned) => {
+      const scrapeOfferCondition = (el, obj) => {
+       let o = scrapeThing(el, '#aod-offer-heading', 'h5');
+       obj.condition = (o.length) ? $(o[0]).text().trim().replace("\n","") : "";
+       while (obj.condition && obj.condition.includes('  ')) { obj.condition = obj.condition.replace("  "," ");}
+      }
+      // scrapeOfferCondition()
+
+      const scrapeOfferSellerAndId = (el, obj) => {
         let sellerId = '';
         let seller   = scrapeThing(el, '#aod-offer-soldBy', 'a');
         if (seller.length) {
@@ -115,7 +115,7 @@ module.exports = function() {
               sellerId = sellerId[1].split("&");
               sellerId = sellerId[0];
             } else {
-              sellerId = "AMZ";
+              sellerId = "AMAZON";
             }
           } else {
             sellerId = "?";
@@ -125,7 +125,7 @@ module.exports = function() {
           /* if here then the seller should be 'amazon.com' in <span> */
           seller = scrapeThing(el, '#aod-offer-soldBy', 'span.a-color-base');
           if (seller.length) {
-            sellerId = '0'; // amazon.com
+            sellerId = "AMAZON";
             seller   = $(seller[0]).text().trim();
           } else {
             sellerId = "?";
@@ -137,7 +137,7 @@ module.exports = function() {
       }
       // scrapeOfferSellerAndId()
 
-      const scrapeOfferShipping = (el, obj, pinned) => {
+      const scrapeOfferShipping = (el, obj) => {
         let o = scrapeThing(el, '#aod-offer-shipsFrom', 'a');
         if (!o.length) o = scrapeThing(el, '#aod-offer-shipsFrom', 'span.a-color-base');
         let s = (obj.seller || "").toLowerCase();
@@ -145,13 +145,25 @@ module.exports = function() {
       }
       // scrapeOfferShipping()
 
-      const scrapeOfferRatings = (el, obj, pinned) => {
-        let o = scrapeThing(el, '', '.XXX');
-        obj.ratings = (o.length) ? $(o[0]).text().trim() : "";
+      const scrapeOfferRatingsAndRate = (el, obj, pinned) => {
+        if (obj.sellerId!='AMAZON') {
+          let o = (pinned) ? scrapeThing(el, '', '#aod-asin-reviews-count-title')    // '35 ratings'
+                           : scrapeThing(el, '#aod-offer-seller-rating > span > span', ''); // '(35 ratings)<br>65% positive over last 12 months'
+          if (o.length) {
+
+            o = $(o[0]).text().split(' ratings');
+            obj.ratings = numerize(o[0]);
+            o = (o.length>1) ? o[1].trim() : '';
+            if (o) {
+              o = o.replace(")","").split(" ");
+              obj.rate = ((o[1]==='positive')?'':'-') + o[0];
+            }
+          }
+        }
       }
       // scrapeOfferRatings()
 
-      const scrapeOfferRate = (el, obj, pinned) => {
+      const scrapeOfferRate = (el, obj) => {
         let o = scrapeThing(el, '', '.XXX');
         obj.rate = (o.length) ? $(o[0]).text().trim() : "";
       }
@@ -162,12 +174,11 @@ module.exports = function() {
         if (items.length) items.each(function() {
           let obj = {...objOffer};
           obj.buyBox = (pinned) ? "Y" : "";
-          scrapeOfferPrice(       $(this), obj, pinned);
-          scrapeOfferCondition(   $(this), obj);
-          scrapeOfferSellerAndId( $(this), obj);
-          scrapeOfferShipping(    $(this), obj);
-          scrapeOfferRatings(     $(this), obj);
-          scrapeOfferRate(        $(this), obj);
+          scrapeOfferPrice(          $(this), obj, pinned);
+          scrapeOfferCondition(      $(this), obj);
+          scrapeOfferSellerAndId(    $(this), obj);
+          scrapeOfferShipping(       $(this), obj);
+          scrapeOfferRatingsAndRate( $(this), obj, pinned);
           output.push({...obj});
         });
       }
@@ -217,16 +228,15 @@ module.exports = function() {
 
       /* fill up the main part (objProduct) */
       scrapeProductTitle(   null, objProduct);
-      scrapeProductRatings( null, objProduct);
-      scrapeProductBSR(     null, objProduct);
       scrapeProductAnswers( null, objProduct);
+      scrapeProductBSR(     null, objProduct);
       output.push({...objProduct});
 
       /* fetch from url of the sellers page */
 
       errCode = 0;
       resp = await axios.get(
-        makeSellersUrl(asin),
+        makeOffersUrl(asin),
         {
           headers : {
             'Host'   : "www.amazon.com",
@@ -288,7 +298,7 @@ module.exports = function() {
     output: process.stdout,
   });
 
-  readline.question(`:: Enter ASINs seperated by comma (or enter 'test') : `, (ids) => {
+  readline.question(`AMAZON-SCRAPER v.${mdVersion} by NMYdoc630819\n\n:: Enter ASINs seperated by comma (or enter 'test') : `, (ids) => {
 
     console.log(" ");
     var sessionMoment   = moment();
@@ -297,7 +307,7 @@ module.exports = function() {
     var idsx = ids.trim().replace(/ /g, '');
     var asinArr = idsx.split(',');
 
-    if ((asinArr.length>0)&&(asinArr[0])) {
+    if ((asinArr.length)&&(asinArr[0])) {
 
       if (asinArr[0]=='test') {
         asinArr = ['B01GDJ2BH6','B07H4VWNNR','B08L4SLBFN','404-IS-BAD'];
@@ -308,7 +318,7 @@ module.exports = function() {
       const promises = [];
       var   prmsCntr = 0;
       asinArr.forEach(thisAsin => {
-        promises.push(new Promise((resolve, reject) => {setTimeout(function(){scrapePage(thisAsin, resolve, reject)},((iDelay*prmsCntr)+1))}));
+        promises.push(new Promise((resolve, reject) => {setTimeout(function(){scrapePage(thisAsin, resolve, reject)},((iDelay*prmsCntr)?(iDelay*prmsCntr):314))}));
         prmsCntr++;
       });
 
@@ -328,8 +338,12 @@ module.exports = function() {
           console.log(data);
           console.log(" ");
         }
-        console.log(`\n:: Scraping session ${(fileExport)?`saved as 'output/${sessionFilename}.csv' `:''}with ${data.length} items `+
-                    `${(iDelay)?('& '+(iDelay+1)+' msec. gaps '):''}has completed in ${moment().unix()-sessionMoment.unix()} seconds\n`);
+        let gap = (iDelay) ? iDelay : 0;
+        if (gap>=60000) {gap=(gap/60000)+' minute'} else if (gap>=1000) {gap=(gap/1000)+' second'} else if (gap>0) gap=gap+' millisecond';
+        let run = moment().unix() - sessionMoment.unix();
+        if (run>=3600) {run=(run/3600)+' hours'} else if (run>=60) {run=(run/60)+' minutes'} else run=run+' seconds';
+        console.log(`\n:: Amazon-Scraping session ${(fileExport)?`saved as 'output/${sessionFilename}.csv' `:''}with ${data.length} items `+
+                    `${(iDelay)?('& '+gap+' gaps '):''}has completed in ${run}\n`);
       }
       // wrapUp()
 
