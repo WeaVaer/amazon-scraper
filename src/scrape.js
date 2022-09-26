@@ -7,11 +7,14 @@ const fs = require("fs");
 
 module.exports = function() {
 
-  const fileExport = true;  // true -> exports output as csv file to 'output' directory
-  const iDelay     = 1400;//3142;  // 0 -> all processes run simultaneously; N -> processes run sequentially with N milliseconds in between
-  const realTime   = true;  // true -> output is displayed seperately for each process
-  const DBG        = 0;     // 0 -> none, 1 -> brief, 2 -> verbose, 3 -> diagnostics
-  const mdVersion  = '20220925.0430';
+  const fileExport    = true;  // true -> exports output as csv file to 'output' directory
+  const interDelay    = 3142;  // 0 -> all processes run simultaneously,  N -> processes run sequentially with N milliseconds in between
+  const proc_pAnswers = false; // false -> show productAnswers as is,  true -> numerize productAnswers
+  const proc_oRatings = false; // false -> show offerRatings as is,    true -> numerize offerRatings
+  const proc_oRates   = false; // false -> show offerRates as is,      true -> numerize offerRates
+  const DBG           = 0;     // console output : 0 -> none, 1 -> brief, 2 -> verbose, 3 -> diagnostics
+  const logsRealtime  = true;  // data output is displayed on console : true -> seperately for each process,  false -> at the end of session if (!fileExport)
+  const moduleVersion = '20220925.0524';
 
   async function scrapePage (asin, resolve=null, reject=null) {
 
@@ -68,13 +71,13 @@ module.exports = function() {
       const scrapeProductTitle = (el, obj) => {
         let o = scrapeThing(el, '', '#title_feature_div #productTitle');
         obj.title = (o.length) ? $(o[0]).text().trim() : "NOT FOUND";
-        if (!realTime) console.log(`[${asin}] title =>`, obj.title);
+        if (!logsRealtime) console.log(`[${asin}] title =>`, obj.title);
       }
       // scrapeProductTitle()
 
       const scrapeProductAnswers = (el, obj) => {
         let o = scrapeThing(el, '', '#askATFLink');
-        obj.answers = (o.length) ? numerize($(o[0]).text()) : "";
+        if (o.length) obj.answers = (proc_pAnswers) ? numerize($(o[0]).text()) : $(o[0]).text().trim().split(' ')[0];
       }
       // scrapeProductAnswers()
 
@@ -151,12 +154,16 @@ module.exports = function() {
                            : scrapeThing(el, '#aod-offer-seller-rating > span > span', ''); // '(35 ratings)<br>65% positive over last 12 months'
           if (o.length) {
 
-            o = $(o[0]).text().split(' ratings');
-            obj.ratings = numerize(o[0]);
+            o = $(o[0]).text().trim().split(' ratings');
+            obj.ratings = (proc_oRatings) ? numerize(o[0]) : o[0].replace("(","");
             o = (o.length>1) ? o[1].trim() : '';
             if (o) {
-              o = o.replace(")","").split(" ");
-              obj.rate = ((o[1]==='positive')?'':'-') + o[0];
+              if (proc_oRates) { // process offer rate as numeric
+                o = o.replace(")","").split(" ");
+                obj.rate = ((o[1]==='positive')?'':'-') + o[0];
+              } else { // keep offer rate as is
+                obj.rate = o.replace(")","");
+              }
             }
           }
         }
@@ -213,9 +220,9 @@ module.exports = function() {
       });
       if (errCode) {
         objProduct.title = (errCode==404) ? "NOT FOUND" : ("ERROR:"+errCode);
-        if (!realTime) console.log(`[${asin}] title =>`, objProduct.title);
+        if (!logsRealtime) console.log(`[${asin}] title =>`, objProduct.title);
         output.push({...objProduct});
-        if (realTime) console.log(output, '\n');
+        if (logsRealtime) console.log(output, '\n');
         if (resolve) resolve(output);
         return;
       } else {
@@ -256,7 +263,7 @@ module.exports = function() {
         obj = {...objOffer};
         obj.seller = (errCode==404) ? "NOT FOUND" : ("ERROR : "+errCode);
         output.push({...obj});
-        if (realTime) console.log(output, '\n');
+        if (logsRealtime) console.log(output, '\n');
         if (resolve) resolve(output);
         return;
       } else {
@@ -273,7 +280,7 @@ module.exports = function() {
 
       /* that's it for this ASIN */
       if (resolve) resolve(output);
-      if (realTime) console.log(output, '\n');
+      if (logsRealtime) console.log(output, '\n');
       return;
 
     }
@@ -298,7 +305,7 @@ module.exports = function() {
     output: process.stdout,
   });
 
-  readline.question(`AMAZON-SCRAPER v.${mdVersion} by NMYdoc630819\n\n:: Enter ASINs seperated by comma (or enter 'test') : `, (ids) => {
+  readline.question(`AMAZON-SCRAPER v.${moduleVersion} by NMYdoc630819\n\n:: Enter ASINs seperated by comma (or enter 'test') : `, (ids) => {
 
     console.log(" ");
     var sessionMoment   = moment();
@@ -318,7 +325,7 @@ module.exports = function() {
       const promises = [];
       var   prmsCntr = 0;
       asinArr.forEach(thisAsin => {
-        promises.push(new Promise((resolve, reject) => {setTimeout(function(){scrapePage(thisAsin, resolve, reject)},((iDelay*prmsCntr)?(iDelay*prmsCntr):314))}));
+        promises.push(new Promise((resolve, reject) => {setTimeout(function(){scrapePage(thisAsin, resolve, reject)},((interDelay*prmsCntr)?(interDelay*prmsCntr):314))}));
         prmsCntr++;
       });
 
@@ -333,21 +340,21 @@ module.exports = function() {
             if ((DBG>1)&&(error.stack)) console.log(`[file] error.stack =>`, error.stack);
                                    else console.log(`[file] error.message =>`, error.message);
           }
-        } else if (!realTime) {
+        } else if (!logsRealtime) {
           console.log("\n:: OUTPUT =>\n");
           console.log(data);
           console.log(" ");
         }
-        let gap = (iDelay) ? iDelay : 0;
+        let gap = (interDelay) ? interDelay : 0;
         if (gap>=60000) {gap=(gap/60000)+' minute'} else if (gap>=1000) {gap=(gap/1000)+' second'} else if (gap>0) gap=gap+' millisecond';
         let run = moment().unix() - sessionMoment.unix();
         if (run>=3600) {run=(run/3600)+' hours'} else if (run>=60) {run=(run/60)+' minutes'} else run=run+' seconds';
         console.log(`\n:: Amazon-Scraping session ${(fileExport)?`saved as 'output/${sessionFilename}.csv' `:''}with ${data.length} items `+
-                    `${(iDelay)?('& '+gap+' gaps '):''}has completed in ${run}\n`);
+                    `${(interDelay)?('& '+gap+' gaps '):''}has completed in ${run}\n`);
       }
       // wrapUp()
 
-      if (iDelay) {
+      if (interDelay) {
 
         const output = [];
         async function executeSequential () {
