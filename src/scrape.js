@@ -163,7 +163,7 @@ module.exports = function() {
             seller   = $(seller[0]).text().trim();
           } else {
             /* if here then we couldnt find a seller record */
-            seller   = config.noSellers;
+            seller   = config.str_noSellers;
           }
         }
         obj.seller   = seller;
@@ -209,23 +209,26 @@ module.exports = function() {
 
       const scrapeOffers = (pinned=false) => {
         if (config.singleRecord && (!pinned)) return; // skip offer records other than the recommended if (config.singleRecord)
-        let firstDone = false;
         let items = scrapeThing(null, '', ((pinned)?'#aod-pinned-offer':'#aod-offer'));
         if (items.length) items.each(function() {
-          if (config.singleRecord && firstDone) return; // just in case
-          firstDone = true;
-          var obj;
-          if (!config.singleRecord) {
-            obj = {...objOffer};
+          if (config.singleRecord) {
+            scrapeOfferPrice(          $(this), objProduct, pinned);
+            scrapeOfferCondition(      $(this), objProduct);
+            scrapeOfferSellerAndId(    $(this), objProduct);
+            scrapeOfferShipping(       $(this), objProduct);
+            scrapeOfferRatingsAndRate( $(this), objProduct, pinned);
+          } else {
+            var obj = {...objOffer};
             obj.buyBox = (pinned) ? "Y" : "";
             if (config.asinInOffer) obj.productAsin = asin;
+            scrapeOfferPrice(          $(this), obj, pinned);
+            scrapeOfferCondition(      $(this), obj);
+            scrapeOfferSellerAndId(    $(this), obj);
+            scrapeOfferShipping(       $(this), obj);
+            scrapeOfferRatingsAndRate( $(this), obj, pinned);
+            output.push({...obj});
           }
-          scrapeOfferPrice(          $(this), (config.singleRecord) ? objProduct : obj, pinned);
-          scrapeOfferCondition(      $(this), (config.singleRecord) ? objProduct : obj);
-          scrapeOfferSellerAndId(    $(this), (config.singleRecord) ? objProduct : obj);
-          scrapeOfferShipping(       $(this), (config.singleRecord) ? objProduct : obj);
-          scrapeOfferRatingsAndRate( $(this), (config.singleRecord) ? objProduct : obj, pinned);
-          if (!config.singleRecord) output.push({...obj});
+
         });
       }
       // scrapeOffers()
