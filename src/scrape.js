@@ -10,7 +10,8 @@ const config = require(path.resolve(__dirname, "config" ));
 
 module.exports = function() {
 
-  var pageCntr   = 0;
+  var pageCntr = 0;
+  var missCntr = 0;
 
   async function scrapePage (asin, totalAsins, resolve=null, reject=null) {
 
@@ -40,23 +41,23 @@ module.exports = function() {
                                        ]
     */
 
-    const showLog = (outObj, processIndex, totAsins) => console.log('<'+processIndex+'/'+totAsins+'>\n\n', outObj, '\n');
+    const showLogIndex = (outObj, processIndex, totAsins) => console.log('<'+processIndex+'/'+totAsins+'>\n\n', outObj, '\n');
 
-    const handleErrors  = (error, isExcp=false, obj=null) => {
+    const handleErrors  = (error, logStr, obj=null) => {
       if (error.response) {
         /* The request was made and the server responded with a status code that falls out of the range of 2xx */
         if (config.debugMode) {
           if (config.debugMode>1) {
-            console.log(`[${asin}] error.response.data =>`,    error.response.data);
-            console.log(`[${asin}] error.response.headers =>`, error.response.headers);
+            console.log(`!! ${logStr} [${asin}] error.response.data =>`,    error.response.data);
+            console.log(`!! ${logStr} [${asin}] error.response.headers =>`, error.response.headers);
           }
-          console.log(`[${asin}] error.response.status =>`,  error.response.status);
+          console.log(`!! ${logStr} [${asin}] error.response.status =>`, error.response.status);
         }
         errCode = error.response.status;
       } else if (error.request) {
         /* The request was made but no response was received.
            `error.request` is an instance of XMLHttpRequest in the browser and an instance of http.ClientRequest in node.js */
-        if (config.debugMode) console.log(`[${asin}] error.request =>`, ((config.debugMode>1) ? error.request : "error=200"));
+        if (config.debugMode) console.log(`!! ${logStr} [${asin}] error.request =>`, ((config.debugMode>1) ? error.request : "error=200"));
         errCode = 200;
       } else {
         /* Something happened in setting up the request that triggered an Error */
@@ -74,12 +75,33 @@ module.exports = function() {
           }
         }
         if (config.beSpiritual) console.log('\n!! '+createRandomSwear+'\n');
-        if ((isExcp||(config.debugMode>1))&&(error.stack)) console.log(`[${asin}] error.stack =>`,   error.stack);
-                                                      else console.log(`[${asin}] error.message =>`, error.message);
-        if (obj) obj.trace = (isExcp&&(error.stack)) ? error.stack.join('\n') : error.message;
+        if ((config.debugMode>1)&&(error.stack)) console.log(`!! ${logStr} [${asin}] error.stack =>`,   error.stack);
+                                            else console.log(`!! ${logStr} [${asin}] error.message =>`, error.message);
+        console.log('');
+        if (obj) {
+          var err;
+          if (error.stack) {
+            err = {};
+            Object.getOwnPropertyNames(error).forEach(function (propName) {
+              err[propName] = error[propName];
+            });
+            err = JSON.stringify(err.stack).replace(/\\n    at /g, ' | at ').replace(/\\\\/g, '/').replace(/"/g, '');
+            while (err.includes('/amazon-scraper/')) {
+              err = err.split('/amazon-scraper/');
+              let idx = err[0].lastIndexOf('(');
+              err[1] = ((idx==-1) ? err[0] : err[0].substr(0,idx+1)) + err[1];
+              err.shift();
+              err = err.join('/amazon-scraper/');
+            }
+          } else {
+            err = error.message;
+          }
+          err = logStr+' '+err;
+          obj.trace = (obj.trace) ? (obj.trace+' [:] '+err) : err;
+        }
         errCode = 999;
       }
-      if (isExcp && error.config) console.log(`[${asin}] error.config =>`, error.config);
+      if ((config.debugMode>1)&&(error.config)) console.log(`!! ${logStr} [${asin}] error.config =>`, error.config);
     }
     // handleErrors()
 
@@ -174,17 +196,17 @@ module.exports = function() {
       const scrapeOfferShipping = (el, obj) => {
         if ((obj.seller)&&(obj.seller!='?')&&(obj.seller!=config.str_noSellers)) {
           let o = scrapeThing(el, '#aod-offer-shipsFrom', 'a');
-          if (!o.length) o = scrapeThing(el, '#aod-offer-shipsFrom', 'span.a-color-base');
+          if (!o.length) 
+              o = scrapeThing(el, '#aod-offer-shipsFrom', 'span.a-color-base');
           let s = obj.seller.toLowerCase();
-          obj.shipping = (o.length) ? ((($(o[0]).text().trim()==obj.seller)&&(s.excludes('amazon')))?'FBM':'FBA') : "?";
+          obj.shipping = (o.length) ? ((($(o[0]).text().trim()==obj.seller)&&(!(s.includes('amazon'))))?'FBM':'FBA') : "?";
         }
       }
       // scrapeOfferShipping()
 
       const scrapeOfferRatingsAndRate = (el, obj, pinned) => {
         if (obj.sellerId!='AMAZON') {
-          let o = (pinned) ? scrapeThing(el, '', '#aod-asin-reviews-count-title')
-                           : scrapeThing(el, '#aod-offer-seller-rating > span > span', '');
+          let o = scrapeThing(el, '#aod-offer-seller-rating > span > span', '');
           if (o.length) {
             o = $(o[0]).text().trim();
             if (o=='Just launched') {
@@ -300,41 +322,45 @@ module.exports = function() {
 
           /* that's it for this ASIN */
           if (!output.length) output.push({...objProduct});
+          if (config.logsRealtime) showLogIndex(output, pageIndex, totalAsins);
           if (resolve) resolve(output);
-          if (config.logsRealtime) showLog(output, pageIndex, totalAsins);
 
         })
         .catch(function (error) {
-           handleErrors(error);
            if (!output.length) output.push({...objProduct});
-           if (config.singleRecord) {
-             output[0].seller = `[ERROR-${errCode}]`;
-           } else {
-             let obj = {...objOffer};
-             obj.seller = `[ERROR-${errCode}]`;
-             if (config.asinInOffer) obj.productAsin = asin;
-             output.push({...obj});
+           handleErrors(error, '{EXCP-offer}', output[0]);
+           if (errCode<999) {
+             if (config.singleRecord) {
+               output[0].seller = (errCode==404) ? config.str_Error404 : `[ERROR-${errCode}]`;
+             } else {
+               let obj = {...objOffer};
+               obj.seller = (errCode==404) ? config.str_Error404 : `[ERROR-${errCode}]`;
+               if (config.asinInOffer) obj.productAsin = asin;
+               output.push({...obj});
+             }
            }
-           if (config.logsRealtime) showLog(output, pageIndex, totalAsins);
+           if (config.logsRealtime) showLogIndex(output, pageIndex, totalAsins);
            if (resolve) resolve(output);
         });
 
       })
       .catch(function (error) {
-         handleErrors(error);
          if (!output.length) output.push({...objProduct});
-         output[0].title = `[ERROR-${errCode}]`;
-         if (config.logsRealtime) showLog(output, pageIndex, totalAsins);
-                             else console.log(`[${asin}] =>`, objProduct.title);
+         handleErrors(error, '{EXCP-product}', output[0]);
+         if (errCode<999) {
+           missCntr++;
+           output[0].title = (errCode==404) ? config.str_Error404 : `[ERROR-${errCode}]`;
+         }
+         if (config.logsRealtime) showLogIndex(output, pageIndex, totalAsins);
          if (resolve) resolve(output);
       });
 
     }
     catch(excp) {
       if (!output.length) output.push({...objProduct});
-      handleErrors(excp, true, output[0]);
+      handleErrors(excp, '{EXCP}', output[0]);
+      if (config.logsRealtime) showLogIndex(output, pageIndex, totalAsins);
       if (resolve) resolve(output);
-      if (config.logsRealtime) showLog(output, pageIndex, totalAsins);
     }
 
   }
@@ -354,7 +380,7 @@ module.exports = function() {
     output: process.stdout,
   });
 
-  readline.question(`\n\n>>>  AMAZON-SCRAPER®  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>  version:${config.moduleVersion}  auth:${config.moduleAuthor}\n\n\n\n` +
+  readline.question(`\n\n>>>  AMAZON-SCRAPER®  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>  version:${config.moduleVersion}  auth:${config.moduleAuthor}\n\n\n` +
                     `:: Enter ASINs seperated by comma/space (or enter 'test') : `,
   (ids) => {
 
@@ -379,10 +405,11 @@ module.exports = function() {
     if ((asinArr.length)&&(asinArr[0])) {
 
       if (asinArr[0]=='test') {
-        asinArr = ['B01GDJ2BH6','B07H4VWNNR','B08L4SLBFN','B009QM9WSY','404-IS-BAD'];
-        console.log(`:: ${(config.beSpiritual)?'INSALLAH ':''}Testing ${asinArr.length} ASIN.s =>`, asinArr);
+        //asinArr = ['404-IS-BAD','B01GDJ2BH6','B07H4VWNNR','B08L4SLBFN','B009QM9WSY','B00AMGUZ70'];
+        asinArr = ['B01GDJ2BH6'];
+        console.log(`:: ${(config.beSpiritual)?'INSALLAH ':''}Testing ${asinArr.length} ASIN${(asinArr.length>1)?'.s':''} =>`, asinArr);
       } else {
-        console.log(`:: ${(config.beSpiritual)?'INSALLAH ':''}Processing ${asinArr.length} ASIN.s ...`);
+        console.log(`:: ${(config.beSpiritual)?'INSALLAH ':''}Processing ${asinArr.length} ASIN${(asinArr.length>1)?'.s':''} ...`);
       }
       console.log("\n");
 
@@ -420,7 +447,8 @@ module.exports = function() {
         let run = moment().unix() - sessionMoment.unix();
         if (run>=3600) {run=chkTrail0((run/3600).toFixed(1))+' hours'} else if (run>=60) {run=chkTrail0((run/60).toFixed(1))+' minutes'} else run=run+' seconds';
         console.log(`\n:: ${(config.beSpiritual)?'YARABBI SUKUR :: ':''}` +
-                    `AMAZON-SCRAPER® session ${(config.fileExport)?`saved as 'output/${sessionFilename}.csv' `:''}with ${pageCntr+'/'+asinArr.length} pages ` +
+                    `AMAZON-SCRAPER® session ${(config.fileExport)?`saved as 'output/${sessionFilename}.csv' `:''}with ${pageCntr+'/'+asinArr.length} page`+((asinArr.length>1)?'s':'')+' ' +
+                    `${(missCntr)?('('+missCntr+' miss) '):''}` +
                     `${(config.interDelay)?('& '+gap+' gaps '):''}has completed in ${run}\n`);
       }
       // wrapUp()

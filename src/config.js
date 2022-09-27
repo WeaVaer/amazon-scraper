@@ -14,8 +14,9 @@ const config = {
   beSpiritual   : false,  // true -> use spiritual language in the console logs
 
   str_noSellers : "[NO-SELLERS]",
+  str_Error404  : "[NOT-FOUND]",
 
-  moduleVersion : '20220926.1347',
+  moduleVersion : '20220927.0230',
   moduleAuthor  : 'NMYdoc630819'
 
 };
