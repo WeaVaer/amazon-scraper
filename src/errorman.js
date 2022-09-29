@@ -79,7 +79,7 @@ module.exports = function (error, config, logStr, asin, outputObj=null) {
   }
 
   if ((config.debugMode>2)&&(error.config)) console.log(`!! ${logStr} [${asin}] error.config =>`, error.config);
-  
+
   return errCode;
 
 }

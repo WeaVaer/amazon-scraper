@@ -52,7 +52,7 @@ const config = {
   str_Error404     : "[NOT-FOUND]",
   str_rejected     : "[REJECTED]",
 
-  moduleVersion    : '20220929.0700',
+  moduleVersion    : '20220929.0704',
   moduleAuthor     : 'NMYdoc630819'
 
 };

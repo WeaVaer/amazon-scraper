@@ -1,4 +1,5 @@
 
+
 class scrape_amazon {
 
   constructor (config, asin) {
