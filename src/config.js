@@ -1,7 +1,7 @@
 
 const config = {
 
-  intraDelay_msec  :  314,   // 0 -> no delay after 'product page fetch' to do 'offers page fetch',   N -> introduce N milliseconds between the two
+  intraDelay_msec  : 3142,   // 0 -> no delay after 'product page fetch' to do 'offers page fetch',   N -> introduce N milliseconds between the two
   interDelay_msec  : 3142,   // 0 -> all processes run simultaneously (this might cause rejections),  N -> processes run sequentially with N milliseconds in between
   retryDelay_sec   :   60,   // delay process for N seconds to retry the rejected fetch requests
   maxRuns          :    4,   // maxRuns = (first run of the asin's) + (N-1 retrials if any)
@@ -52,7 +52,7 @@ const config = {
   str_Error404     : "[NOT-FOUND]",
   str_rejected     : "[REJECTED]",
 
-  moduleVersion    : '20220929.0628',
+  moduleVersion    : '20220929.0700',
   moduleAuthor     : 'NMYdoc630819'
 
 };

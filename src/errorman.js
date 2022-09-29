@@ -9,7 +9,7 @@ module.exports = function (error, config, logStr, asin, outputObj=null) {
     /* The request was made and the server responded with a status code that falls out of the range of 2xx */
 
     if (config.debugMode) {
-      if (config.debugMode>1) {
+      if (config.debugMode>2) {
         console.log(`!! ${logStr} [${asin}] error.response.data =>`,    error.response.data);
         console.log(`!! ${logStr} [${asin}] error.response.headers =>`, error.response.headers);
       }
@@ -78,7 +78,8 @@ module.exports = function (error, config, logStr, asin, outputObj=null) {
 
   }
 
-  if ((config.debugMode>1)&&(error.config)) console.log(`!! ${logStr} [${asin}] error.config =>`, error.config);
+  if ((config.debugMode>2)&&(error.config)) console.log(`!! ${logStr} [${asin}] error.config =>`, error.config);
+  
   return errCode;
 
 }

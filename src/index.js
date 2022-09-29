@@ -87,7 +87,7 @@ module.exports = function() {
         $ = Parser.load(pResp.data);
         if (config.debugMode==3) console.log(`[${asin}] product page ==>`, $);
 
-        /* fill up the main part (objProduct) */
+        /* fill up the product part (objProduct) */
         Scraper.scrape_Product($, objProduct);
         if (objProduct.trace==config.str_unavailable) {
           // no need to fetch offers if product is scraped as 'unavailable'
@@ -103,61 +103,62 @@ module.exports = function() {
         if (!config.singleRecord) pageOutput.push({...objProduct});
 
         /* fetch from url of the sellers page */
-        if (config.debugMode==2) console.log(`[${asin}] fetching offers page ..\n`);
         setTimeout(
+
           () => {
+
+            if (config.debugMode==2) console.log(`[${asin}] fetching offers page ..\n`);
+            Fetcher.get( makeOffersUrl(asin), {headers:config.headerFetch} )
+
+            .then((oResp) => {
+
+              if (config.debugMode==3) console.log(`[${asin}] offers page fetch response =>`, oResp);
+
+              /* parse response as dom */
+              $ = Parser.load(oResp.data);
+              if (config.debugMode==3) console.log(`[${asin}] offers page ==>`, $);
+
+              /* scrape and fill up the seller information */
+              Scraper.scrape_Offers  ($, config, objProduct, objOffer, pageOutput, /*pinned*/true); // first get the recommended offer on top
+              if (!config.singleRecord)
+                Scraper.scrape_Offers($, config, objProduct, objOffer, pageOutput, /*pinned*/false); // then get the rest of the offers
+
+              /* that's it for this ASIN */
+              if (pageOutput.length==0) pageOutput.push({...objProduct});
+              if (config.logsRealtime) showLogIndex(pageOutput, pageIndex, totalAsins);
+              if (resolve) resolve(pageOutput);
+
+            })
+
+            .catch(function (error) {
+
+               if (pageOutput.length==0) pageOutput.push({...objProduct});
+               let errCode  = ErrorMan(error, config, '{EXCP-fetchOffer}', asin, pageOutput[0]);
+               let rejected = ((errCode==200) || ((errCode>=500)&&(errCode<=599)));
+               if (errCode<999) { // not exceptions
+                 if (errCode==404) missCntr++;
+                 if (config.singleRecord) {
+                   pageOutput[0].seller = (errCode==404) ? config.str_Error404 : `${(rejected)?'RETRY ':''}[ERROR-${errCode}]`;
+                 } else {
+                   let obj = {...objOffer};
+                   obj.seller = (errCode==404) ? config.str_Error404 : `${(rejected)?'RETRY ':''}[ERROR-${errCode}]`;
+                   if (config.addAsinToOffers) obj.productAsin = asin;
+                   pageOutput.push({...obj});
+                 }
+               }
+               if (config.logsRealtime) showLogIndex(pageOutput, pageIndex, totalAsins);
+               if (rejected) {
+                 rjctCntr++;
+                 if (pageOutput.length>0) pageOutput = [];
+                 retryArr.push(asin);
+               }
+               if (resolve) resolve(pageOutput);
+
+            });
 
           },
           get_intraDelay_msec()
         );
-
-        Fetcher.get( makeOffersUrl(asin), {headers:config.headerFetch} )
-
-        .then((oResp) => {
-
-          if (config.debugMode==3) console.log(`[${asin}] offers page fetch response =>`, oResp);
-
-          /* parse response as dom */
-          $ = Parser.load(oResp.data);
-          if (config.debugMode==3) console.log(`[${asin}] offers page ==>`, $);
-
-          /* scrape and fill up the seller information */
-          Scraper.scrape_Offers  ($, config, objProduct, objOffer, pageOutput, /*pinned*/true); // first get the recommended offer on top
-          if (!config.singleRecord)
-            Scraper.scrape_Offers($, config, objProduct, objOffer, pageOutput, /*pinned*/false); // then get the rest of the offers
-
-          /* that's it for this ASIN */
-          if (pageOutput.length==0) pageOutput.push({...objProduct});
-          if (config.logsRealtime) showLogIndex(pageOutput, pageIndex, totalAsins);
-          if (resolve) resolve(pageOutput);
-
-        })
-
-        .catch(function (error) {
-
-           if (pageOutput.length==0) pageOutput.push({...objProduct});
-           let errCode  = ErrorMan(error, config, '{EXCP-fetchOffer}', asin, pageOutput[0]);
-           let rejected = ((errCode==200) || ((errCode>=500)&&(errCode<=599)));
-           if (errCode<999) { // not exceptions
-             if (errCode==404) missCntr++;
-             if (config.singleRecord) {
-               pageOutput[0].seller = (errCode==404) ? config.str_Error404 : `${(rejected)?'RETRY ':''}[ERROR-${errCode}]`;
-             } else {
-               let obj = {...objOffer};
-               obj.seller = (errCode==404) ? config.str_Error404 : `${(rejected)?'RETRY ':''}[ERROR-${errCode}]`;
-               if (config.addAsinToOffers) obj.productAsin = asin;
-               pageOutput.push({...obj});
-             }
-           }
-           if (config.logsRealtime) showLogIndex(pageOutput, pageIndex, totalAsins);
-           if (rejected) {
-             rjctCntr++;
-             if (pageOutput.length>0) pageOutput = [];
-             retryArr.push(asin);
-           }
-           if (resolve) resolve(pageOutput);
-
-        });
 
       })
 
