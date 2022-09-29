@@ -13,7 +13,7 @@ module.exports = function (error, config, logStr, asin, outputObj=null) {
         console.log(`!! ${logStr} [${asin}] error.response.data =>`,    error.response.data);
         console.log(`!! ${logStr} [${asin}] error.response.headers =>`, error.response.headers);
       }
-      console.log(`!! ${logStr} [${asin}] error.response.status =>`, error.response.status);
+      console.log(`!! ${logStr} [${asin}] error.response.status =>`, "error="+error.response.status, "\n");
     }
 
     errCode = error.response.status;

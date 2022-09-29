@@ -17,4 +17,7 @@ command line options :
 
 TO-DO :
 -------
-none
+- chk 503 type errors, retry or/and pause for a minute
+- chk 1022 ASIN list, proof
+
+

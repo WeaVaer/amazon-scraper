@@ -19,6 +19,12 @@ class scrape_amazon {
   }
   // scrapeThing()
 
+
+
+
+
+  /* functions below to scrape parts of the product ------------------------------------------------------------ */
+
   scrapeProduct_Title ($, obj) {
     let o = this.scrapeThing($, null, '', '#title_feature_div #productTitle');
     obj.title = (o.length) ? $(o[0]).text().trim() : "???";
@@ -52,7 +58,7 @@ class scrape_amazon {
       o = $(o[0]).text().replace(/\n/g,'').split(' (')[0].split(' in ');
       if (o[0].includes(':')) o[0] = o[0].split(':')[1].trim();
       obj.bsRank = (this.config.numeric_pBSrank) ? this.numerize(o[0], true) : o[0];
-      obj.bsCat  = o[1];
+      obj.bsCat  = o[1].trim();
     };
   }
   // scrapeProduct_bsRankAndCat()
@@ -64,10 +70,40 @@ class scrape_amazon {
     if (o.length) {
       o = $(o[0]).text().replace(/\n/g,'').trim();
       if (o.includes(':')) o = o.split(':')[1];
-      obj.upc = o.replace(/[^a-z0-9]/gi, '');
+      obj.upc = ((this.config.string_pUPC)?"'":"") + o.replace(/ /g, '?').replace(/[^a-z0-9]/gi, '');
     };
   }
   // scrapeProduct_UPC()
+
+  scrapeProduct_availability ($, obj) {
+    let o = this.scrapeThing($, null, '', '#availability > span');
+    if (o.length) {
+      o = $(o[0]).text().replace(/\n/g,'').replace(/ /g,'').trim();
+      if (o.includes('unavailable')) obj.trace = this.config.str_unavailable;
+    };
+  }
+  // scrapeProduct_availability()
+
+
+
+  /*
+     scrapeProduct -> main function for scraping the product  which calls the functions above
+  */
+  scrape_Product ($, objProduct) {
+    this.scrapeProduct_Title        ($, objProduct);
+    this.scrapeProduct_Reviews      ($, objProduct);
+    this.scrapeProduct_Answers      ($, objProduct);
+    this.scrapeProduct_bsRankAndCat ($, objProduct);
+    this.scrapeProduct_UPC          ($, objProduct);
+    this.scrapeProduct_availability ($, objProduct);
+  }
+  // scrape_Product()
+
+
+
+
+
+  /* functions below to scrape parts of the offer ------------------------------------------------------------ */
 
   scrapeOffer_Price ($, el, obj, pinned) {
     let o = this.scrapeThing($, el, ((pinned)?'#aod-price-0':'#aod-offer-price'), '.a-offscreen');
@@ -152,6 +188,40 @@ class scrape_amazon {
     }
   }
   // scrapeOffer_RatingsAndOpinion()
+
+  /*
+     scrapeOffers -> main function for scraping offers which calls the functions above
+  */
+  scrape_Offers ($, config, objProduct, objOffer, output, pinned) {
+    if (config.singleRecord && (!pinned)) return; // skip offer records other than the recommended if (config.singleRecord)
+    var items = this.scrapeThing($, null, '', ((pinned)?'#aod-pinned-offer':'#aod-offer'));
+    if (items.length) {
+      var t = this;
+      items.each(function() {
+        if (config.singleRecord) {
+          t.scrapeOffer_Price             ($, $(this), objProduct, pinned);
+          t.scrapeOffer_Condition         ($, $(this), objProduct);
+          t.scrapeOffer_SellerAndSellerId ($, $(this), objProduct);
+          t.scrapeOffer_Shipping          ($, $(this), objProduct);
+          t.scrapeOffer_RatingsAndOpinion ($, $(this), objProduct);
+        } else {
+          var obj = {...objOffer};
+          obj.buyBox = (pinned) ? "Y" : "";
+          if (config.addAsinToOffers) obj.productAsin = asin;
+          t.scrapeOffer_Price             ($, $(this), obj, pinned);
+          t.scrapeOffer_Condition         ($, $(this), obj);
+          t.scrapeOffer_SellerAndSellerId ($, $(this), obj);
+          t.scrapeOffer_Shipping          ($, $(this), obj);
+          t.scrapeOffer_RatingsAndOpinion ($, $(this), obj);
+          output.push({...obj});
+        }
+      });
+    };
+  }
+  // scrape_Offers()
+
+
+
 
 }
 // class scrape_amazon{}
