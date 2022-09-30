@@ -1,10 +1,12 @@
 
 const config = {
 
-  intraDelay_msec  : 3142,   // 0 -> no delay after 'product page fetch' to do 'offers page fetch',   N -> introduce N milliseconds between the two
-  interDelay_msec  : 3142,   // 0 -> all processes run simultaneously (this might cause rejections),  N -> processes run sequentially with N milliseconds in between
-  retryDelay_sec   :   60,   // delay process for N seconds to retry the rejected fetch requests
-  maxRuns          :    4,   // maxRuns = (first run of the asin's) + (N-1 retrials if any)
+  multiThread      : false,  // true -> product page fetches run simultaneously (this might cause rejections),  false -> product page fetches run sequentially (recommended)
+  intraDelay_msec  : 5000,   // 0 -> no delay after 'product page fetch' to do 'offers page fetch',   N -> introduce N milliseconds between the two
+  interDelay_msec  : 5000,   // 0 -> ,  N -> processes run sequentially with N milliseconds in between
+  delayVariance    :    0,   // 0 -> no variance for 'intraDelay_msec' & 'interDelay_msec' during run,  N (max:100) -> introduce random variance (-N% .. +N%) for each page fetch
+  retryDelay_sec   :  180,   // delay process for N seconds to retry the rejected fetch requests
+  maxRuns          :    9,   // maxRuns = (first run of the asin's) + (N-1 retrials if any)
   fileExport       : true,   // true -> exports page(s) output as csv file to 'output' directory
   logsRealtime     : true,   // page(s) output is displayed on console :  true -> seperately for each page,  false -> at the end of session if (!fileExport)
   singleRecord     : true,   // false -> include all sellers of the product in a tree view output format (product and seller info on seperate lines),
@@ -20,10 +22,14 @@ const config = {
 
   beEmotional      : false,  // true -> use emotinal language in the console logs on errors
 
-  debugMode        : 1,      // console output : 0 -> none, 1 -> brief, 2 -> verbose, 3 -> diagnostics
-  testAsinArr      : ['404-IS-BAD','B01GDJ2BH6','B07H4VWNNR','B08L4SLBFN','B009QM9WSY','B00AMGUZ70','B000BI3M60','B00JWSFQW8','B001QJ54W8'],
+  debugMode        : 1,      // console output : 0 -> none, 1 -> brief, 2 -> verbose, 3 -> extensive (use with caution against wall of texts)
+
+  testAsinArr      : ['404-IS-BAD','B01GDJ2BH6','B07H4VWNNR','B08L4SLBFN','B009QM9WSY','B00AMGUZ70','B000BI3M60','B00JWSFQW8','B001QJ54W8','B00GFGBAVQ','B0036CNYWK'],
   //testAsinArr      : ['404-IS-BAD'],
   //testAsinArr      : ['B00JWSFQW8'],
+  //testAsinArr      : ['B00GFGBAVQ'], // multiple UPCs
+  //testAsinArr      : ['B0036CNYWK'], // license needed
+
 
   urlProduct       : "https://www.amazon.com/dp/",
   urlOffers_pfx    : "https://www.amazon.com/gp/aod/ajax/?asin=",
@@ -39,20 +45,7 @@ const config = {
                        'User-Agent' : "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:105.0) Gecko/20100101 Firefox/105.0"
                      },
 
-  language         : "TR",   // oneOf ['EN', 'TR']
-  str_GODWILL_EN   : "GOD WILLING",
-  str_GODWILL_TR   : "iNSALLAH",
-  str_GRATITUDE_EN : "THANK GOD",
-  str_GRATITUDE_TR : "YARABBi SUKUR",
-  str_UNFORTUNE_EN : "UNFORTUNATELY",
-  str_UNFORTUNE_TR : "MAALESEF",
-
-  str_noSellers    : "[NO-SELLERS]",
-  str_unavailable  : "[UNAVAILABLE]",
-  str_Error404     : "[NOT-FOUND]",
-  str_rejected     : "[REJECTED]",
-
-  moduleVersion    : '20220929.0704',
+  moduleVersion    : '20220930.0704',
   moduleAuthor     : 'NMYdoc630819'
 
 };

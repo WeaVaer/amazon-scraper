@@ -6,6 +6,7 @@ const j2cp = require("json2csv").Parser;
 const fs = require("fs");
 const path = require('path');
 const config = require(path.resolve(__dirname, "config" ));
+const strings = require(path.resolve(__dirname, "strings" ));
 const ErrorMan = require(path.resolve(__dirname, "errorman" ));
 const scrape_amazon = require(path.resolve(__dirname, "scrape_amazon" )); // will be created as 'Scraper', dynamically as needed
 
@@ -24,10 +25,16 @@ module.exports = function() {
   var retryArr = []; // will be filled with rejected ASIN's (error-200 or error-50X on fetch) if any
   var dataPool = [];
 
-  const get_intraDelay_msec = () => (config.intraDelay_msec<1) ? 1 : config.intraDelay_msec;
-  const get_interDelay_msec = () => (config.interDelay_msec<0) ? 0 : config.interDelay_msec;
-  const get_maxRuns         = () => (config.maxRuns<1)         ? 1 : config.maxRuns;
-  const get_retryDelay_sec  = () => (config.retryDelay_sec<0)  ? 0 : config.retryDelay_sec;
+  const get_maxRuns         = ()  => (config.maxRuns<1)         ? 1 : config.maxRuns;
+  const get_retryDelay_sec  = ()  => (config.retryDelay_sec<0)  ? 0 : config.retryDelay_sec;
+
+  const get_delayVariance   = ()  => (config.delayVariance<0)   ? 0 : ((config.delayVariance>100) ? 100 : config.delayVariance);
+  const randomizeDelay      = (d) => Math.round(d * (Math.round(Math.random) /* 0 or 1 */ + Math.random(get_delayVariance()/100)));
+  const get_intraDelay_msec = ()  => (config.intraDelay_msec<1) ? 1 : (((get_delayVariance()==0) ? config.intraDelay_msec : randomizeDelay(config.intraDelay_msec)) || 1);
+  const get_interDelay_msec = ()  => (config.interDelay_msec<1) ? 1 : (((get_delayVariance()==0) ? config.interDelay_msec : randomizeDelay(config.intraDelay_msec)) || 1);
+  const raw_interDelay_msec = ()  => (config.interDelay_msec<0) ? 0 : config.interDelay_msec;
+
+
 
 
   async function scrapeThePage (asin, totalAsins, resolve=null, reject=null) {
@@ -63,7 +70,7 @@ module.exports = function() {
 
       /* create the scraper */
 
-      const Scraper = new scrape_amazon(config, asin);
+      const Scraper = new scrape_amazon(config, strings, asin);
 
       /* setup the page output object templates and initialize */
 
@@ -72,7 +79,7 @@ module.exports = function() {
         objProduct = {...objProduct, ...{price:'', condition:'', seller:'', sellerId:'', shipping:'', ratings:'', opinion:'', trace:''}};
       } else {
         objProduct = {...objProduct, ...{trace:''}};
-        objOffer   = (config.addAsinToOffers) ? {productAsin:''} : {};
+        objOffer   = (config.addAsinToOffers) ? {productAsin:asin} : {};
         objOffer   = {...objOffer, ...{buyBox:'', price:'', condition:'',  seller:'',  sellerId:'', shipping:'', ratings:'', opinion:''}};
       }
 
@@ -90,11 +97,12 @@ module.exports = function() {
 
         /* fill up the product part (objProduct) */
         Scraper.scrape_Product($, objProduct);
-        if (objProduct.trace==config.str_unavailable) {
-          // no need to fetch offers if product is scraped as 'unavailable'
-          if (config.singleRecord) objProduct.seller = objProduct.trace; else objOffer.seller = objProduct.trace;
-          objProduct.trace = "";
-          if (pageOutput.length==0) pageOutput.push({...objProduct});
+        if (objProduct.trace.includes('pass-'+strings.str_unavailable) || objProduct.trace.includes('pass-'+strings.str_needsLogin)) {
+          // no need to fetch offers if product is scraped as 'unavailable' or offer page needs login (needs business account and license)
+          let extract = (objProduct.trace.includes('pass-'+strings.str_unavailable)) ? strings.str_unavailable : strings.str_needsLogin;
+          if (config.singleRecord) objProduct.seller = extract; else objOffer.seller = extract;
+          if ((objProduct.trace==('pass-'+strings.str_unavailable)) || (objProduct.trace==('pass-'+strings.str_needsLogin))) objProduct.trace = "";
+          if (pageOutput.length==0) /* just in case */ pageOutput.push({...objProduct});
           if (!config.singleRecord) pageOutput.push({...objOffer});
           if (config.logsRealtime) showLogIndex(pageOutput, pageIndex, totalAsins);
           if (resolve) resolve(pageOutput);
@@ -139,11 +147,10 @@ module.exports = function() {
                if (errCode<999) { // not exceptions
                  if (errCode==404) missCntr++;
                  if (config.singleRecord) {
-                   pageOutput[0].seller = (errCode==404) ? config.str_Error404 : `${(rejected)?'RETRY ':''}[ERROR-${errCode}]`;
+                   pageOutput[0].seller = (errCode==404) ? strings.str_Error404 : `${(rejected)?'RETRY ':''}[ERROR-${errCode}]`;
                  } else {
                    let obj = {...objOffer};
-                   obj.seller = (errCode==404) ? config.str_Error404 : `${(rejected)?'RETRY ':''}[ERROR-${errCode}]`;
-                   if (config.addAsinToOffers) obj.productAsin = asin;
+                   obj.seller = (errCode==404) ? strings.str_Error404 : `${(rejected)?'RETRY ':''}[ERROR-${errCode}]`;
                    pageOutput.push({...obj});
                  }
                }
@@ -171,7 +178,7 @@ module.exports = function() {
          let rejected = ((errCode==200) || ((errCode>=500)&&(errCode<=599)));
          if (errCode<999) { // not exceptions
            if (errCode==404) missCntr++;
-           pageOutput[0].title = (errCode==404) ? config.str_Error404 : `${(rejected)?'RETRY ':''}[ERROR-${errCode}]`;
+           pageOutput[0].title = (errCode==404) ? strings.str_Error404 : `${(rejected)?'RETRY ':''}[ERROR-${errCode}]`;
          }
          if (config.logsRealtime) showLogIndex(pageOutput, pageIndex, totalAsins);
          if (rejected) {
@@ -214,7 +221,7 @@ module.exports = function() {
 //console.log(`WRAPUP dataPool [${dataPool.length}] =>`, dataPool, "\n");
 
       const chkTrail0 = (s) => (s.endsWith('.0')) ? s.split('.0')[0]: s;
-      let gap = get_interDelay_msec();
+      let gap = raw_interDelay_msec();
       if (gap>=60000) {gap=chkTrail0((gap/60000).toFixed(1))+' minute'} else if (gap>=10000) {gap=chkTrail0((gap/1000).toFixed(1))+' second'} else if (gap>0) gap=gap+' millisecond'; else gap='';
       var runTime = Moment().unix() - sessionMoment.unix();
       let run = runTime;
@@ -222,11 +229,11 @@ module.exports = function() {
       else if (run>=60)   run = chkTrail0((run/60).toFixed(1)) + ' minute'+((run>1)?'s':'');
       else if (run>0)     run = run + ' second'+((run>1)?'s':'');
       else                run = 'less than a second';
-      console.log(`\n## ${(config.beEmotional)?(((config.language=='TR')?config.str_GRATITUDE_TR:config.str_GRATITUDE_EN)+' :: '):''}` +
+      console.log(`\n## ${(config.beEmotional)?(((config.language=='TR')?strings.str_GRATITUDE_TR:strings.str_GRATITUDE_EN)+' :: '):''}` +
                   `AMAZON-SCRAPER® run${(get_maxRuns()>1)?('-'+runCntr+' (max '+get_maxRuns()+')'):''} with ${pageCntr+'/'+asinArr.length} page`+((asinArr.length>1)?'s':'')+' ' +
                   `${(missCntr)?('('+missCntr+' miss) '):''}` +
                   `${(rjctCntr)?('('+rjctCntr+' reject) '):''}` +
-                  `${(gap)?('& '+gap+' gaps '):''}has completed in ${run}\n\n`);
+                  `${(gap)?('& '+gap+' '+((get_delayVariance()>0)?('±'+get_delayVariance()+'% randomized '):'')+'gaps '):''}has completed in ${run}\n\n`);
 
       var finalize = true;
 
@@ -247,7 +254,7 @@ module.exports = function() {
           console.log(`\n!! Max run count of ${get_maxRuns()} is reached with the following ASINs left over :`);
           console.log("  ", retryArr, "\n");
           /* add left over asin.s */
-          retryArr.forEach(retryAsin => dataPool.push({asin:retryAsin, title:config.str_rejected, scrapeTime:'', run:get_maxRuns()}));
+          retryArr.forEach(retryAsin => dataPool.push({asin:retryAsin, title:strings.str_rejected, scrapeTime:'', run:get_maxRuns()}));
           retryArr = [];
         }
       }
@@ -260,14 +267,14 @@ module.exports = function() {
             try {
               var sessionFilename = Moment().utc().format("YYYY-MM-DD_hh-mm-ss");
               fs.writeFileSync(`./output/${sessionFilename}.csv`, csv);
-              console.log(`\n:: ${(config.beEmotional)?(((config.language=='TR')?config.str_GRATITUDE_TR:config.str_GRATITUDE_EN)+' :: '):''}` +
+              console.log(`\n:: ${(config.beEmotional)?(((config.language=='TR')?strings.str_GRATITUDE_TR:strings.str_GRATITUDE_EN)+' :: '):''}` +
                           `AMAZON-SCRAPER® session saved as 'output/${sessionFilename}.csv' with ${dataPool.length} item${(dataPool.length>1)?'s':''}\n`);
             } catch(error) {
               console.log("\n");
               ErrorMan(error, config, '{EXCP-wrapUp/fileExport}', "", null);
             }
           } else {
-            console.log(`\n:: ${(config.beEmotional)?(((config.language=='TR')?config.str_UNFORTUNE_TR:config.str_UNFORTUNE_EN)+' :: '):''}Nothing to save !\n`);
+            console.log(`\n:: ${(config.beEmotional)?(((config.language=='TR')?strings.str_UNFORTUNE_TR:strings.str_UNFORTUNE_EN)+' :: '):''}Nothing to save !\n`);
           }
         } else if (!config.logsRealtime) {
           console.log("\n:: OUTPUT =>\n");
@@ -287,7 +294,7 @@ module.exports = function() {
       return;
     }
 
-    let greeting = (config.beEmotional) ? (((config.language=='TR')?config.str_GODWILL_TR:config.str_GODWILL_EN)+' ') : '';
+    let greeting = (config.beEmotional) ? (((config.language=='TR')?strings.str_GODWILL_TR:strings.str_GODWILL_EN)+' ') : '';
     if (asinArr[0]=='test') {
       asinArr = [...config.testAsinArr];
       console.log(`:: ${greeting}Testing ${asinArr.length} ASIN${(asinArr.length>1)?'.s':''} =>`, asinArr);
@@ -306,13 +313,17 @@ module.exports = function() {
       promises.push(new Promise((resolve, reject) => {
         setTimeout(
           () => scrapeThePage(thisAsin, asinArr.length, resolve, reject),
-          (((get_interDelay_msec()<1) ? 1 : get_interDelay_msec()) * prmsCntr) + 1
+          (get_interDelay_msec() * prmsCntr)
         );
       }));
       prmsCntr++;
     });
 
-    if (get_interDelay_msec()>0) {
+    if (config.multiThread) {
+
+      Promise.all(promises).then(runOutput => wrapUp(runOutput)).catch(error => ErrorMan(error, config, '{EXCP-Execute-Multithread}', "", null));
+
+    } else {
 
       async function executeSequential () {
         var runOutput = [];
@@ -322,7 +333,7 @@ module.exports = function() {
               const out = await promise;
               runOutput.push(...out);
             } catch(error) {
-              ErrorMan(error, config, '{EXCP-executeSequential}', "", null);
+              ErrorMan(error, config, '{EXCP-Execute-Sequential}', "", null);
             }
           }
         }
@@ -331,10 +342,6 @@ module.exports = function() {
       }
 
       executeSequential();
-
-    } else {
-
-      Promise.all(promises).then(runOutput => wrapUp(runOutput)).catch(error => ErrorMan(error, config, '{EXCP-Execute/promiseAll}', "", null));
 
     }
 

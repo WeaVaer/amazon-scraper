@@ -2,9 +2,10 @@
 
 class scrape_amazon {
 
-  constructor (config, asin) {
-    this.config = config;
-    this.asin   = asin;
+  constructor (config, strings, asin) {
+    this.cfg = config;
+    this.str = strings;
+    this.asn = asin;
   }
 
   numerize (num, asNumeric) {
@@ -12,7 +13,7 @@ class scrape_amazon {
     let n = (num+'').trim().replace(/ /g,'').replace('#','').replace('(','').replace(')','').replace(/,/g,'');
     if (isNaN(n)) return n;
     n = (asNumeric) ? parseInt(n) : parseFloat(n);
-    return (this.config.numeric_use1000s) ? n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') : n;
+    return (this.cfg.numeric_use1000s) ? n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') : n;
   }
 
   scrapeThing ($, el, section, component) {
@@ -29,7 +30,7 @@ class scrape_amazon {
   scrapeProduct_Title ($, obj) {
     let o = this.scrapeThing($, null, '', '#title_feature_div #productTitle');
     obj.title = (o.length) ? $(o[0]).text().trim() : "???";
-    if (!this.config.logsRealtime) console.log(`[${this.asin}] title =>`, obj.title);
+    if (!this.cfg.logsRealtime) console.log(`[${this.asn}] title =>`, obj.title);
   }
   // scrapeProduct_Title()
 
@@ -37,7 +38,7 @@ class scrape_amazon {
     let o = this.scrapeThing($, null, '', '#acrCustomerReviewLink');
     if (o.length) {
       o = $(o[0]).text().trim().split(' ')[0];
-      obj.reviews = (this.config.numeric_pReviews) ? this.numerize(o, true) : o;
+      obj.reviews = (this.cfg.numeric_pReviews) ? this.numerize(o, true) : o;
     }
   }
   // scrapeProduct_Reviews()
@@ -46,7 +47,7 @@ class scrape_amazon {
     let o = this.scrapeThing($, null, '', '#askATFLink');
     if (o.length) {
       o = $(o[0]).text().trim().split(' ')[0];
-      obj.answers = (this.config.numeric_pAnswers) ? this.numerize(o, true) : o;
+      obj.answers = (this.cfg.numeric_pAnswers) ? this.numerize(o, true) : o;
     }
   }
   // scrapeProduct_Answers()
@@ -58,7 +59,7 @@ class scrape_amazon {
     if (o.length) {
       o = $(o[0]).text().replace(/\n/g,'').split(' (')[0].split(' in ');
       if (o[0].includes(':')) o[0] = o[0].split(':')[1].trim();
-      obj.bsRank = (this.config.numeric_pBSrank) ? this.numerize(o[0], true) : o[0];
+      obj.bsRank = (this.cfg.numeric_pBSrank) ? this.numerize(o[0], true) : o[0];
       obj.bsCat  = o[1].trim();
     };
   }
@@ -71,7 +72,7 @@ class scrape_amazon {
     if (o.length) {
       o = $(o[0]).text().replace(/\n/g,'').trim();
       if (o.includes(':')) o = o.split(':')[1];
-      obj.upc = ((this.config.string_pUPC)?"'":"") + o.replace(/ /g, '?').replace(/[^a-z0-9]/gi, '');
+      obj.upc = ((this.cfg.string_pUPC)?"#":"") + o.replace(/[^a-z0-9\s]/gi,'').trim().replace(/ /g, ','+((this.cfg.string_pUPC)?"#":""));
     };
   }
   // scrapeProduct_UPC()
@@ -80,7 +81,15 @@ class scrape_amazon {
     let o = this.scrapeThing($, null, '', '#availability > span');
     if (o.length) {
       o = $(o[0]).text().replace(/\n/g,'').replace(/ /g,'').trim();
-      if (o.includes('unavailable')) obj.trace = this.config.str_unavailable;
+      if (o.toLowerCase().includes('unavailable')) obj.trace += ((obj.trace) ? ", " : "") + 'pass-'+this.str.str_unavailable;
+    };
+  }
+  // scrapeProduct_availability()
+
+  scrapeProduct_needsLogin ($, obj) {
+    let o = this.scrapeThing($, null, '', '#businessOnlySelectionBox');
+    if (o.length) {
+      obj.trace += ((obj.trace) ? ", " : "") + 'pass-'+this.str.str_needsLogin;
     };
   }
   // scrapeProduct_availability()
@@ -97,6 +106,7 @@ class scrape_amazon {
     this.scrapeProduct_bsRankAndCat ($, objProduct);
     this.scrapeProduct_UPC          ($, objProduct);
     this.scrapeProduct_availability ($, objProduct);
+    this.scrapeProduct_needsLogin   ($, objProduct);
   }
   // scrape_Product()
 
@@ -145,7 +155,7 @@ class scrape_amazon {
         seller   = $(seller[0]).text().trim();
       } else {
         /* if here then we couldnt find a seller record */
-        seller   = this.config.str_noSellers;
+        seller   = this.str.str_noSellers;
       }
     }
     obj.seller   = seller;
@@ -154,7 +164,7 @@ class scrape_amazon {
   // scrapeOffer_SellerAndSellerId()
 
   scrapeOffer_Shipping ($, el, obj) {
-    if ((obj.seller)&&(obj.seller!='?')&&(obj.seller!=this.config.str_noSellers)) {
+    if ((obj.seller)&&(obj.seller!='?')&&(obj.seller!=this.str.str_noSellers)) {
       let o = this.scrapeThing($, el, '#aod-offer-shipsFrom', 'a');
       if (!o.length)
           o = this.scrapeThing($, el, '#aod-offer-shipsFrom', 'span.a-color-base');
@@ -174,10 +184,10 @@ class scrape_amazon {
           obj.opinion = o;
         } else {
           o = o.split(' ratings');
-          obj.ratings = (this.config.numeric_sRatings) ? this.numerize(o[0], true) : o[0].replace("(","");
+          obj.ratings = (this.cfg.numeric_sRatings) ? this.numerize(o[0], true) : o[0].replace("(","");
           o = (o.length>1) ? o[1].trim() : '';
           if (o) {
-            if (this.config.numeric_sOpinion) { // process offer rate as numeric
+            if (this.cfg.numeric_sOpinion) { // process offer rate as numeric
               o = o.replace(")","").split(" ");
               obj.opinion = ((o[1]==='positive')?'+':'-') + o[0];
             } else { // keep offer rate as is
