@@ -28,8 +28,8 @@ class scrape_amazon {
   /* functions below to scrape parts of the product ------------------------------------------------------------ */
 
   scrapeProduct_Title ($, obj) {
-    let o = this.scrapeThing($, null, '', '#title_feature_div #productTitle');
-    obj.title = (o.length) ? $(o[0]).text().trim() : "???";
+    let o = this.scrapeThing($, null, '', '#productTitle');
+    obj.title = (o.length) ? $(o[0]).text().trim() : this.cfg.str_unknown;
     if (!this.cfg.logsRealtime) console.log(`[${this.asn}] title =>`, obj.title);
   }
   // scrapeProduct_Title()
