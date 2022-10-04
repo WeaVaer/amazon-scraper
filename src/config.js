@@ -3,7 +3,7 @@ const config = {
 
   interDelay_msec     :  3142,  // 0 -> ,  N -> processes run sequentially with N milliseconds in between
   intraDelay_msec     :  1358,  // 0 -> no delay after 'product page fetch' to do 'offers page fetch',     N -> introduce N milliseconds of delay between the product and offers pages
-  delayVariance       :     0,  // 0 -> no variance for 'intraDelay_msec' & 'interDelay_msec' during run,  N (max:100) -> introduce random variance (-N% .. +N%) for each page fetch
+  delayVariance       :    10,  // 0 -> no variance for 'intraDelay_msec' & 'interDelay_msec' during run,  N (max:100) -> introduce random variance (-N% .. +N%) for each page fetch
   skipTheRestIfReject :  true,  // true -> reject the rest of the ASIN input list after receiving error-503
   retryDelay_sec      :   180,  // pause process for N seconds to retry the rejected fetch requests
   maxRuns             :     9,  // maxRuns = (first run of the asin's) + (N-1 retrials if any)
@@ -20,8 +20,8 @@ const config = {
 
   debugMode           : 1,      // console output : 0 -> none, 1 -> brief, 2 -> verbose, 3 -> log fetch response, 4 -> log parsed dom
 
-  testAsinArr         : ['B01GDJ2BH6','B07H4VWNNR','B08L4SLBFN','B009QM9WSY','404-IS-BAD','B00AMGUZ70','B000BI3M60','B00JWSFQW8','B001QJ54W8','B00GFGBAVQ','B0036CNYWK'],
-  //testAsinArr         : ['B01GDJ2BH6','B07H4VWNNR'],
+  //testAsinArr         : ['B01GDJ2BH6','B07H4VWNNR','B08L4SLBFN','B009QM9WSY','404-IS-BAD','B00AMGUZ70','B000BI3M60','B00JWSFQW8','B001QJ54W8','B00GFGBAVQ','B0036CNYWK'],
+  testAsinArr         : ['B01GDJ2BH6','B07H4VWNNR'],
 
   test50AsinArr       : [`B076CRWMBD`,`B00AMGUZ70`,`B00ZVV33XY`,`B01KNILLTM`,`B009VKHI3M`,`B0036CNYWK`,`B01N4S998D`,`B00OBR0QMK`,`B01HDZ4TZG`,`B017ODOUJM`,
                          `B01EYT6TB6`,`B0093J2GM4`,`B001ANS184`,`B06XNP8J4R`,`B00Q5EELFK`,`B006HSREVC`,`B01LMOR7DA`,`B000BI3M60`,`B0732J99GX`,`B0170PGQRI`,
@@ -51,7 +51,7 @@ const config = {
   str_rejected        : "[REJECTED]",    // asin.s that gets error-503 (traffic) or error-200 (noResponse) will be retried later
   str_TrafficControl  : "[TRAFFIC-CONTROL]",
 
-  moduleVersion       : '20221004.0404',
+  moduleVersion       : '20221004.0407',
   moduleAuthor        : 'NMYdoc630819'
 
 };

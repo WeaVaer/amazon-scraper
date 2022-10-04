@@ -201,7 +201,7 @@ class scrape_amazon {
   /*
      scrapeOffers -> main function for scraping offers which calls the functions above
   */
-  scrape_PinnedOffer ($, config, pageOutput) {
+  scrape_PinnedOffer ($, pageOutput) {
     var items = this.scrapeThing($, null, '', '#aod-pinned-offer');
     if (items.length) {
       this.scrapeOffer_Price             ($, $(items[0]), pageOutput);

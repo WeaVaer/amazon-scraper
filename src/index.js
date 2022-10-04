@@ -28,8 +28,8 @@ module.exports = function() {
   const get_maxRuns         = ()  => (config.maxRuns<1)         ? 1 : config.maxRuns;
   const get_retryDelay_msec = ()  => (config.retryDelay_sec<1)  ? 1 : config.retryDelay_sec*1000;
 
-  const get_delayVariance   = ()  => (config.delayVariance<0)   ? 0 : ((config.delayVariance>100) ? 100 : config.delayVariance);
-  const randomizeDelay      = (d) => Math.round(d * (Math.round(Math.random) /* 0 or 1 */ + Math.random(get_delayVariance()/100)));
+  const get_delayVariance   = ()  => (config.delayVariance<1)   ? 0 : ((config.delayVariance>100) ? 100 : config.delayVariance);
+  const randomizeDelay      = (d) => Math.round(d * ((Math.round(Math.random())) /* 0 or 1 */ ? 1-(Math.random()*(get_delayVariance()/100)) : 1+(Math.random()*(get_delayVariance()/100))) );
   const get_intraDelay_msec = ()  => (config.intraDelay_msec<1) ? 1 : (((get_delayVariance()==0) ? config.intraDelay_msec : randomizeDelay(config.intraDelay_msec)) || 1);
   const get_interDelay_msec = ()  => (config.interDelay_msec<1) ? 1 : (((get_delayVariance()==0) ? config.interDelay_msec : randomizeDelay(config.interDelay_msec)) || 1);
 
@@ -116,7 +116,7 @@ module.exports = function() {
               if (config.debugMode==4) console.log(`DEBUG [asin:${asin}] offers page DOM =>`, $("*"), "\n");
 
               /* scrape and fill up the seller information */
-              Scraper.scrape_PinnedOffer($, config, pageOutput);
+              Scraper.scrape_PinnedOffer($, pageOutput);
               if (pageOutput.seller==config.str_noSellers) {
                 if (config.htmlOffersExport==1) writeFileAsHtml(/*isProductPage*/false, asin, oResp.data);
               }
