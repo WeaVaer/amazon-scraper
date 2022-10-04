@@ -8,13 +8,9 @@ module.exports = function (error, config, logStr, asin, outputObj=null) {
 
     /* The request was made and the server responded with a status code that falls out of the range of 2xx */
 
-    if (config.debugMode) {
-      if (config.debugMode>2) {
-        console.log(`!! ${logStr} [${asin}] error.response.data =>`,    error.response.data);
-        console.log(`!! ${logStr} [${asin}] error.response.headers =>`, error.response.headers);
-      }
-      console.log(`!! ${logStr} [${asin}] error.response.status =>`, "error="+error.response.status, "\n");
-    }
+//console.log(`!! ${logStr} [${asin}] error.response.data =>`,    error.response.data);
+//console.log(`!! ${logStr} [${asin}] error.response.headers =>`, error.response.headers);
+    if (config.debugMode>0) console.log(`!! ${logStr} [${asin}] error.response.status =>`, "error="+error.response.status, "\n");
 
     errCode = error.response.status;
 
@@ -25,7 +21,7 @@ module.exports = function (error, config, logStr, asin, outputObj=null) {
     /* The request was made but no response was received.
        `error.request` is an instance of XMLHttpRequest in the browser and an instance of http.ClientRequest in node.js */
 
-    if (config.debugMode) console.log(`!! ${logStr} [${asin}] error.request =>`, ((config.debugMode>1) ? error.request : "error=200"));
+    if (config.debugMode>0) console.log(`!! ${logStr} [${asin}] error.request =>`, ((config.debugMode>1) ? error.request : "error=200"), '\n');
 
     errCode = 200;
 
@@ -33,25 +29,8 @@ module.exports = function (error, config, logStr, asin, outputObj=null) {
 
     /* Something happened in setting up the request that triggered an Error */
 
-    const createRandomSwear = () => {
-      var roll = Math.floor(Math.random()*8); // roll = 0..7
-      switch (roll) {
-        case 0 : return (config.language=='TR') ? 'ALLAH KAHRETMESiN EMi ..' : "GOD DAMN (DON'T) ..";
-        case 1 : return (config.language=='TR') ? 'YAPMA BE YAAA !' : "DON'T DO IT, UWW !";
-        case 2 : return (config.language=='TR') ? 'BU NE Ki SiMDi ?' : "WHAT IS IT NOW ?";
-        case 3 : return (config.language=='TR') ? 'BASLIYACAM SiMDi AMA ..' : "I'M GONNA START NOW THO ..";
-        case 4 : return (config.language=='TR') ? 'HOPPALAAAA !' : "OLEEYYY !";
-        case 5 : return (config.language=='TR') ? 'ABiCiM NEREDEN CIKTI BU HATA ?' : "WHERE DID THIS ERROR COME FROM BRO ?";
-        case 6 : return (config.language=='TR') ? 'BANA HATA DiYE GELMEYiN KARDESiM ..' : "BRO, DON'T COME TO ME SAYING ERROR ..";
-        case 7 : return (config.language=='TR') ? 'DE Ki; HATASIZ KUL OLMAZ ..' : "SAY IT; NO HUMAN IS WITHOUT ERRORS ..";
-      }
-    }
-    // createRandomSwear()
-
-    if (config.beEmotional) console.log('\n!! '+createRandomSwear()+'\n');
-    if ((config.debugMode>1)&&(error.stack)) console.log(`!! ${logStr} [${asin}] error.stack =>`,   error.stack);
-                                        else console.log(`!! ${logStr} [${asin}] error.message =>`, error.message);
-    console.log('');
+    if ((config.debugMode>1)&&(error.stack)) console.log(`!! ${logStr} [${asin}] error.stack =>`,   error.stack, '\n');
+                                        else console.log(`!! ${logStr} [${asin}] error.message =>`, error.message, '\n');
     if (outputObj) {
       var err;
       if (error.stack) {

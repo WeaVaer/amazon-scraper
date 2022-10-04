@@ -2,9 +2,8 @@
 
 class scrape_amazon {
 
-  constructor (config, strings, asin) {
+  constructor (config, asin) {
     this.cfg = config;
-    this.str = strings;
     this.asn = asin;
   }
 
@@ -30,7 +29,6 @@ class scrape_amazon {
   scrapeProduct_Title ($, obj) {
     let o = this.scrapeThing($, null, '', '#productTitle');
     obj.title = (o.length) ? $(o[0]).text().trim() : this.cfg.str_unknown;
-    if (!this.cfg.logsRealtime) console.log(`[${this.asn}] title =>`, obj.title);
   }
   // scrapeProduct_Title()
 
@@ -81,7 +79,7 @@ class scrape_amazon {
     let o = this.scrapeThing($, null, '', '#availability > span');
     if (o.length) {
       o = $(o[0]).text().replace(/\n/g,'').replace(/ /g,'').trim();
-      if (o.toLowerCase().includes('unavailable')) obj.trace += ((obj.trace) ? ", " : "") + 'pass-'+this.str.str_unavailable;
+      if (o.toLowerCase().includes('unavailable')) obj.trace += ((obj.trace) ? ", " : "") + 'pass-'+this.cfg.str_unavailable;
     };
   }
   // scrapeProduct_availability()
@@ -89,7 +87,7 @@ class scrape_amazon {
   scrapeProduct_needsLogin ($, obj) {
     let o = this.scrapeThing($, null, '', '#businessOnlySelectionBox');
     if (o.length) {
-      obj.trace += ((obj.trace) ? ", " : "") + 'pass-'+this.str.str_needsLogin;
+      obj.trace += ((obj.trace) ? ", " : "") + 'pass-'+this.cfg.str_needsLogin;
     };
   }
   // scrapeProduct_availability()
@@ -155,7 +153,7 @@ class scrape_amazon {
         seller   = $(seller[0]).text().trim();
       } else {
         /* if here then we couldnt find a seller record */
-        seller   = this.str.str_noSellers;
+        seller   = this.cfg.str_noSellers;
       }
     }
     obj.seller   = seller;
@@ -164,7 +162,7 @@ class scrape_amazon {
   // scrapeOffer_SellerAndSellerId()
 
   scrapeOffer_Shipping ($, el, obj) {
-    if ((obj.seller)&&(obj.seller!='?')&&(obj.seller!=this.str.str_noSellers)) {
+    if ((obj.seller)&&(obj.seller!='?')&&(obj.seller!=this.cfg.str_noSellers)) {
       let o = this.scrapeThing($, el, '#aod-offer-shipsFrom', 'a');
       if (!o.length)
           o = this.scrapeThing($, el, '#aod-offer-shipsFrom', 'span.a-color-base');
@@ -203,31 +201,15 @@ class scrape_amazon {
   /*
      scrapeOffers -> main function for scraping offers which calls the functions above
   */
-  scrape_Offers ($, config, objProduct, objOffer, output, pinned) {
-    if (config.singleRecord && (!pinned)) return; // skip offer records other than the recommended if (config.singleRecord)
-    var items = this.scrapeThing($, null, '', ((pinned)?'#aod-pinned-offer':'#aod-offer'));
+  scrape_PinnedOffer ($, config, pageOutput) {
+    var items = this.scrapeThing($, null, '', '#aod-pinned-offer');
     if (items.length) {
-      var t = this;
-      items.each(function() {
-        if (config.singleRecord) {
-          t.scrapeOffer_Price             ($, $(this), objProduct, pinned);
-          t.scrapeOffer_Condition         ($, $(this), objProduct);
-          t.scrapeOffer_SellerAndSellerId ($, $(this), objProduct);
-          t.scrapeOffer_Shipping          ($, $(this), objProduct);
-          t.scrapeOffer_RatingsAndOpinion ($, $(this), objProduct);
-        } else {
-          var obj = {...objOffer};
-          obj.buyBox = (pinned) ? "Y" : "";
-          if (config.addAsinToOffers) obj.productAsin = asin;
-          t.scrapeOffer_Price             ($, $(this), obj, pinned);
-          t.scrapeOffer_Condition         ($, $(this), obj);
-          t.scrapeOffer_SellerAndSellerId ($, $(this), obj);
-          t.scrapeOffer_Shipping          ($, $(this), obj);
-          t.scrapeOffer_RatingsAndOpinion ($, $(this), obj);
-          output.push({...obj});
-        }
-      });
-    };
+      this.scrapeOffer_Price             ($, $(items[0]), pageOutput);
+      this.scrapeOffer_Condition         ($, $(items[0]), pageOutput);
+      this.scrapeOffer_SellerAndSellerId ($, $(items[0]), pageOutput);
+      this.scrapeOffer_Shipping          ($, $(items[0]), pageOutput);
+      this.scrapeOffer_RatingsAndOpinion ($, $(items[0]), pageOutput);
+    }
   }
   // scrape_Offers()
 

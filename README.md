@@ -23,6 +23,9 @@ command line options :
 TO-DO :
 -------
 - chk 1022 ASIN list, proof
+
+- do last input asin (hint : write the latest asin run list to a file)
+
 - what to do for pages that have color, size etc selection ?
   sometimes seller info for this page becomes available only after selection
   sometimes page comes as selected but then maybe we need another color, size ??
