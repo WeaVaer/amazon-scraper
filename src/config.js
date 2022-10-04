@@ -1,12 +1,12 @@
 
 const config = {
 
-  interDelay_msec     :  3142,  // 0 -> ,  N -> processes run sequentially with N milliseconds in between
-  intraDelay_msec     :  1358,  // 0 -> no delay after 'product page fetch' to do 'offers page fetch',     N -> introduce N milliseconds of delay between the product and offers pages
+  interDelay_msec     :  7114,  // 0 -> ,  N -> processes run sequentially with N milliseconds in between
+  intraDelay_msec     :  3142,  // 0 -> no delay after 'product page fetch' to do 'offers page fetch',     N -> introduce N milliseconds of delay between the product and offers pages
   delayVariance       :    10,  // 0 -> no variance for 'intraDelay_msec' & 'interDelay_msec' during run,  N (max:100) -> introduce random variance (-N% .. +N%) for each page fetch
   skipTheRestIfReject :  true,  // true -> reject the rest of the ASIN input list after receiving error-503
-  retryDelay_sec      :   180,  // pause process for N seconds to retry the rejected fetch requests
-  maxRuns             :     9,  // maxRuns = (first run of the asin's) + (N-1 retrials if any)
+  retryDelay_sec      :   300,  // pause process for N seconds to retry the rejected fetch requests
+  maxRuns             :    99,  // maxRuns = (first run of the asin's) + (N-1 retrials if any)
   fileExport          :  true,  // true -> exports the collection of page outputs as csv file to 'output' directory at the end of all runs
   htmlProductExport   :     1,  // exports each product page output as a seperate html file to 'html' directory tagged as 'P'    0 -> never, 1 -> on selector's error, 2 -> always
   htmlOffersExport    :     1,  // exports each offers  page output as a seperate html file to 'html' directory tagged as 'O'    0 -> never, 1 -> on selector's error, 2 -> always
@@ -42,15 +42,16 @@ const config = {
                           'User-Agent' : "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:105.0) Gecko/20100101 Firefox/105.0"
                         },
 
-  str_unknown         : "[UNKNOWN]",     // product page which is missing the 'title'              {written in 'title'}
-  str_Error404        : "[NOT-FOUND]",   // product page that does not exist (error-404)           {written in 'title'}
-  str_unavailable     : "[UNAVAILABLE]", // product page that has "Currently unavailaale" tag      {written in 'seller'}
-  str_needsLogin      : "[NEEDS-LOGIN]", // product page that has a business account login box     {written in 'seller'}
-  str_noSellers       : "[NO-SELLERS]",  // product page that does not have the offers page        {written in 'seller'}
-  str_rejected        : "[REJECTED]",    // asin.s that gets error-503 (traffic) or error-200 (noResponse) will be retried later
+  str_unknown         : "[UNKNOWN]",       // product page which is missing the 'title'              {written in 'title'}
+  str_Error404        : "[NOT-FOUND]",     // product page that does not exist (error-404)           {written in 'title'}
+  str_unavailable     : "[UNAVAILABLE]",   // product page that has "Currently unavailaale" tag      {written in 'seller'}
+  str_needsLogin      : "[NEEDS-LOGIN]",   // product page that has a business account login box     {written in 'seller'}
+  str_needsCaptcha    : "[NEEDS-CAPTCHA]", // product page that has a captcha input box              {written in 'title'}
+  str_noSellers       : "[NO-SELLERS]",    // product page that does not have the offers page        {written in 'seller'}
+  str_rejected        : "[REJECTED]",      // asin.s that gets error-503 (traffic) or error-200 (noResponse) will be retried later
   str_TrafficControl  : "[TRAFFIC-CONTROL]",
 
-  moduleVersion       : '20221004.0411',
+  moduleVersion       : '20221004.1700',
   moduleAuthor        : 'NMYdoc630819'
 
 };

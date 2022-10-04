@@ -82,6 +82,15 @@ module.exports = function() {
         const Scraper = new scrape_amazon(config, asin);
         Scraper.scrape_Product($, pageOutput);
 
+        /* skip this asin and the rest of the asin list if Amazon starts to ask for captchas */
+        if (pageOutput.title==config.str_needsCaptcha) {
+          rejectCntr++;
+          retryArr.push(asin);
+          rejectTheRestOfTheRun = config.skipTheRestIfReject;
+          resolve(null);
+          return;
+        }
+
         /* no need to fetch offers if we couldnt find 'title' or product is scraped as 'Currently unavailable' or has a business account login box */
         if ((pageOutput.title==config.str_unknown) || pageOutput.trace.includes('pass-'+config.str_unavailable) || pageOutput.trace.includes('pass-'+config.str_needsLogin)) {
           if (pageOutput.title==config.str_unknown) {
@@ -211,6 +220,8 @@ module.exports = function() {
       if (pageOutput) {
         console.log(`${JSON.stringify(pageOutput)}\n`);
         runOutput.push({...pageOutput});
+      } else {
+        console.log(`{ VOID }\n`);
       }
     }
 

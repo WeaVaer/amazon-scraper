@@ -28,7 +28,16 @@ class scrape_amazon {
 
   scrapeProduct_Title ($, obj) {
     let o = this.scrapeThing($, null, '', '#productTitle');
-    obj.title = (o.length) ? $(o[0]).text().trim() : this.cfg.str_unknown;
+    if (o.length) {
+      obj.title = $(o[0]).text().trim();
+    } else {
+      o = this.scrapeThing($, null, '', `div:contains("Sorry, we just need to make sure you're not a robot")`);
+      if (o.length) {
+        obj.title = this.cfg.str_needsCaptcha;
+      } else {
+        obj.title = this.cfg.str_unknown;
+      }
+    }
   }
   // scrapeProduct_Title()
 
