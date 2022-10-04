@@ -57,7 +57,7 @@ module.exports = function() {
 
       /* Function START */
 
-      console.log(`<${++pageCntr}/${totalAsins}>  ${asin}${(rejectTheRestOfTheRun)?(' '+config.str_TrafficControl):'\n'}`);
+      console.log(`<${++pageCntr}/${totalAsins}>  ${asin}${(rejectTheRestOfTheRun)?('  '+config.str_TrafficControl):'\n'}`);
       if (rejectTheRestOfTheRun) {
         rejectCntr++;
         retryArr.push(asin);
@@ -241,7 +241,7 @@ module.exports = function() {
     console.log(`\n### AMAZON-SCRAPER® run${(get_maxRuns()>1)?('-'+runCntr+' (max:'+get_maxRuns()+')'):''} with ${pageCntr+'/'+asinArr.length} page`+((asinArr.length>1)?'s':'')+' ' +
                 `${(missCntr)?('('+missCntr+' miss) '):''}` +
                 `${(rejectCntr)?('('+rejectCntr+' reject) '):''}` +
-                `${(gap)?('& '+gap+' '+((get_delayVariance()>0)?('±'+get_delayVariance()+'% randomized '):'')+'gaps '):''}has completed in ${run}\n\n`);
+                `${(gap)?('& '+gap+' '+((get_delayVariance()>0)?('(±'+get_delayVariance()+'% randomized) '):'')+'gaps '):''}has completed in ${run}\n\n`);
 
     var finalize = true;
 
