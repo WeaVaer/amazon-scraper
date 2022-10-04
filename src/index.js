@@ -153,7 +153,7 @@ module.exports = function() {
       .catch((error) => {
 
          let errCode = ErrorMan(error, config, '{EXCP-fetchProduct}', asin, pageOutput);
-if ((runCntr==1)&&(errCode==404)) errCode=503;
+//if ((runCntr==1)&&(errCode==404)) errCode=503;
          let rejected = ((errCode==200) || ((errCode>=500)&&(errCode<=599)));
          if (errCode<999) { // not exceptions
            if (errCode==404) missCntr++;
