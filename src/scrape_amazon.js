@@ -123,8 +123,8 @@ class scrape_amazon {
 
   /* functions below to scrape parts of the offer ------------------------------------------------------------ */
 
-  scrapeOffer_Price ($, el, obj, pinned) {
-    let o = this.scrapeThing($, el, ((pinned)?'#aod-price-0':'#aod-offer-price'), '.a-offscreen');
+  scrapeOffer_Price ($, el, obj) {
+    let o = this.scrapeThing($, el, '#aod-price-0', '.a-offscreen'); // this only gets the price from recommended offer; for all other offers use '#aod-offer-price'
     obj.price = (o.length) ? $(o[0]).text().trim() : "";
   }
   // scrapeOffer_Price()
@@ -190,7 +190,7 @@ class scrape_amazon {
           obj.ratings = '';
           obj.opinion = o;
         } else {
-          o = o.split(' ratings');
+          o = (o.includes(' ratings')) ? o.split(' ratings') : o.split(' rating');
           obj.ratings = (this.cfg.numeric_sRatings) ? this.numerize(o[0], true) : o[0].replace("(","");
           o = (o.length>1) ? o[1].trim() : '';
           if (o) {
@@ -211,7 +211,7 @@ class scrape_amazon {
      scrapeOffers -> main function for scraping offers which calls the functions above
   */
   scrape_PinnedOffer ($, pageOutput) {
-    var items = this.scrapeThing($, null, '', '#aod-pinned-offer');
+    var items = this.scrapeThing($, null, '', '#aod-pinned-offer'); // this only gets the recommended offer; for all other offers use '#aod-offer'
     if (items.length) {
       this.scrapeOffer_Price             ($, $(items[0]), pageOutput);
       this.scrapeOffer_Condition         ($, $(items[0]), pageOutput);

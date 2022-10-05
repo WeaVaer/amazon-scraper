@@ -21,7 +21,7 @@ module.exports = function() {
   var pageCntr   = 0;
   var missCntr   = 0;
   var rejectCntr = 0;
-  var rejectTheRestOfTheRun = false;
+  var skipTheRestOfTheRun = false;
   var retryArr   = []; // will be filled with rejected ASIN's (error-200 or error-50X on fetch) if any
   var outputPool = [];
 
@@ -57,8 +57,8 @@ module.exports = function() {
       const makeProductUrl = (asin) => (config.urlProduct + asin);
       const makeOffersUrl  = (asin) => (config.urlOffers_pfx + asin + config.urlOffers_sfx);
 
-      console.log(`[run:${runCntr}] <${++pageCntr}/${totalAsins}>  ${asin}${(rejectTheRestOfTheRun)?('  '+config.str_TrafficControl):'\n'}`);
-      if (rejectTheRestOfTheRun) {
+      console.log(`[run:${runCntr}] <${++pageCntr}/${totalAsins}>  ${asin}${(skipTheRestOfTheRun)?('  '+config.str_TrafficControl):'\n'}`);
+      if (skipTheRestOfTheRun) {
         rejectCntr++;
         retryArr.push(asin);
         resolve(null);
@@ -82,19 +82,24 @@ module.exports = function() {
         const Scraper = new scrape_amazon(config, asin);
         Scraper.scrape_Product($, pageOutput);
 
-        /* skip this asin and the rest of the asin list if Amazon starts to ask for captchas */
-        if (pageOutput.title==config.str_needsCaptcha) {
-          rejectCntr++;
-          retryArr.push(asin);
-          rejectTheRestOfTheRun = config.skipTheRestIfReject;
-          resolve(null);
-          return;
-        }
-
-        /* no need to fetch offers if we couldnt find 'title' or product is scraped as 'Currently unavailable' or has a business account login box */
-        if ((pageOutput.title==config.str_unknown) || pageOutput.trace.includes('pass-'+config.str_unavailable) || pageOutput.trace.includes('pass-'+config.str_needsLogin)) {
+        /* no need to fetch offers if we couldnt find 'title' or product is scraped as 'Currently unavailable' or has a captcha or a business account login box */
+        if (
+             (pageOutput.title==config.str_unknown) || (pageOutput.title==config.str_needsCaptcha) ||
+             pageOutput.trace.includes('pass-'+config.str_unavailable) || pageOutput.trace.includes('pass-'+config.str_needsLogin)
+           )
+        {
           if (pageOutput.title==config.str_unknown) {
             if (config.htmlProductExport==1) writeFileAsHtml(/*isProductPage*/true, asin, pResp.data);
+          }
+          else if (pageOutput.title==config.str_needsCaptcha) {
+            if (config.skipTheRestIfCaptcha) {
+              /* skip this asin and the rest of the asin list when Amazon starts to ask for captchas */
+              rejectCntr++;
+              retryArr.push(asin);
+              skipTheRestOfTheRun = true;
+              resolve(null);
+              return;
+            }
           } else {
             let extract = (pageOutput.trace.includes('pass-'+config.str_unavailable)) ? config.str_unavailable : config.str_needsLogin;
             pageOutput.seller = extract;
@@ -147,7 +152,7 @@ module.exports = function() {
                  rejectCntr++;
                  pageOutput = null;
                  retryArr.push(asin);
-                 rejectTheRestOfTheRun = config.skipTheRestIfReject;
+                 skipTheRestOfTheRun = config.skipTheRestIfReject;
                }
                resolve((pageOutput)?{...pageOutput}:null);
 
@@ -172,7 +177,7 @@ module.exports = function() {
            rejectCntr++;
            pageOutput = null;
            retryArr.push(asin);
-           rejectTheRestOfTheRun = config.skipTheRestIfReject;
+           skipTheRestOfTheRun = config.skipTheRestIfReject;
          }
          resolve((pageOutput)?{...pageOutput}:null);
 
@@ -202,7 +207,7 @@ module.exports = function() {
     missCntr   = 0;
     rejectCntr = 0;
     retryArr   = [];
-    rejectTheRestOfTheRun = false;
+    skipTheRestOfTheRun = false;
 
     const runOutput = [];
     var    runStart = Moment();
@@ -233,7 +238,7 @@ module.exports = function() {
 
     const starterPromise = Promise.resolve(null);
     await asinArr.reduce(
-      (p, asin) => p.then(() => queueThePage(asin, asinArr.length, ((rejectTheRestOfTheRun||(pageCntr==0))?1:get_interDelay_msec())).then(pushThePage)),
+      (p, asin) => p.then(() => queueThePage(asin, asinArr.length, ((skipTheRestOfTheRun||(pageCntr==0))?1:get_interDelay_msec())).then(pushThePage)),
       starterPromise
     );
     outputPool.push(...runOutput);
@@ -247,10 +252,11 @@ module.exports = function() {
     else if (run>=60)   run = chkTrail0((run/60).toFixed(1)) + ' minute'+((run>1)?'s':'');
     else if (run>0)     run = run + ' second'+((run>1)?'s':'');
     else                run = 'less than a second';
-    console.log(`\n### AMAZON-SCRAPER® run${(get_maxRuns()>1)?('-'+runCntr+' (max:'+get_maxRuns()+')'):''} with ${pageCntr+'/'+asinArr.length} page`+((asinArr.length>1)?'s':'')+' ' +
+    console.log(`\n### AMAZON-SCRAPER® run${(get_maxRuns()>1)?('-'+runCntr+' (max:'+get_maxRuns()+')'):''} ` +
+                `where ${pageCntr+' page'+((pageCntr>1)?'s':'')+' visited out of '+asinArr.length+' given ASIN'+((asinArr.length>1)?'s':'')} ` +
                 `${(missCntr)?('('+missCntr+' miss) '):''}` +
                 `${(rejectCntr)?('('+rejectCntr+' reject) '):''}` +
-                `${(gap)?('& '+gap+' '+((get_delayVariance()>0)?('(±'+get_delayVariance()+'% randomized) '):'')+'gaps '):''}has completed in ${run}\n\n`);
+                `${(gap)?('having '+gap+' '+((get_delayVariance()>0)?('(±'+get_delayVariance()+'% randomized) '):'')+'gaps '):''}has completed in ${run}\n\n`);
 
     var finalize = true;
 

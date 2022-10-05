@@ -4,12 +4,13 @@ const config = {
   interDelay_msec     :  7114,  // 0 -> ,  N -> processes run sequentially with N milliseconds in between
   intraDelay_msec     :  3142,  // 0 -> no delay after 'product page fetch' to do 'offers page fetch',     N -> introduce N milliseconds of delay between the product and offers pages
   delayVariance       :    10,  // 0 -> no variance for 'intraDelay_msec' & 'interDelay_msec' during run,  N (max:100) -> introduce random variance (-N% .. +N%) for each page fetch
+  skipTheRestIfCaptcha: false,  // true -> reject the rest of the ASIN input list after finding captcha on a product page
   skipTheRestIfReject :  true,  // true -> reject the rest of the ASIN input list after receiving error-503
   retryDelay_sec      :   300,  // pause process for N seconds to retry the rejected fetch requests
   maxRuns             :    99,  // maxRuns = (first run of the asin's) + (N-1 retrials if any)
   fileExport          :  true,  // true -> exports the collection of page outputs as csv file to 'output' directory at the end of all runs
-  htmlProductExport   :     1,  // exports each product page output as a seperate html file to 'html' directory tagged as 'P'    0 -> never, 1 -> on selector's error, 2 -> always
-  htmlOffersExport    :     1,  // exports each offers  page output as a seperate html file to 'html' directory tagged as 'O'    0 -> never, 1 -> on selector's error, 2 -> always
+  htmlProductExport   :     1,  // exports each product page output as a seperate html file to 'html' directory tagged as 'P'    0 -> never, 1 -> on scraper's error, 2 -> always
+  htmlOffersExport    :     1,  // exports each offers  page output as a seperate html file to 'html' directory tagged as 'O'    0 -> never, 1 -> on scraper's error, 2 -> always
   string_pUPC         :  true,  // false -> scrape 'objProduct.upc' as is,      true -> stringify 'objProduct.upc'
   numeric_pReviews    :  true,  // false -> scrape 'objProduct.reviews' as is,  true -> numerize 'objProduct.reviews'
   numeric_pAnswers    :  true,  // false -> scrape 'objProduct.answers' as is,  true -> numerize 'objProduct.answers'
@@ -51,7 +52,7 @@ const config = {
   str_rejected        : "[REJECTED]",      // asin.s that gets error-503 (traffic) or error-200 (noResponse) will be retried later
   str_TrafficControl  : "[TRAFFIC-CONTROL]",
 
-  moduleVersion       : '20221005.0400',
+  moduleVersion       : '20221005.0704',
   moduleAuthor        : 'NMYdoc630819'
 
 };
