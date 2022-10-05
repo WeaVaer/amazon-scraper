@@ -45,6 +45,8 @@ module.exports = function() {
   // writeFileAsHtml()
 
 
+
+
   function scrapeThePage (asin, totalAsins, resolve) {
 
     try {
@@ -55,9 +57,7 @@ module.exports = function() {
       const makeProductUrl = (asin) => (config.urlProduct + asin);
       const makeOffersUrl  = (asin) => (config.urlOffers_pfx + asin + config.urlOffers_sfx);
 
-      /* Function START */
-
-      console.log(`<${++pageCntr}/${totalAsins}>  ${asin}${(rejectTheRestOfTheRun)?('  '+config.str_TrafficControl):'\n'}`);
+      console.log(`[run:${runCntr}] <${++pageCntr}/${totalAsins}>  ${asin}${(rejectTheRestOfTheRun)?('  '+config.str_TrafficControl):'\n'}`);
       if (rejectTheRestOfTheRun) {
         rejectCntr++;
         retryArr.push(asin);
@@ -220,8 +220,6 @@ module.exports = function() {
       if (pageOutput) {
         console.log(`${JSON.stringify(pageOutput)}\n`);
         runOutput.push({...pageOutput});
-      } else {
-        console.log(`{ VOID }\n`);
       }
     }
 

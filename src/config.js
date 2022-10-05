@@ -51,7 +51,7 @@ const config = {
   str_rejected        : "[REJECTED]",      // asin.s that gets error-503 (traffic) or error-200 (noResponse) will be retried later
   str_TrafficControl  : "[TRAFFIC-CONTROL]",
 
-  moduleVersion       : '20221004.1700',
+  moduleVersion       : '20221005.0400',
   moduleAuthor        : 'NMYdoc630819'
 
 };
